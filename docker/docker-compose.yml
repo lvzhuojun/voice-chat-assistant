@@ -1,0 +1,92 @@
+version: '3.8'
+
+services:
+  # ── PostgreSQL 数据库 ────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: voicechat_postgres
+    environment:
+      POSTGRES_DB: voicechat
+      POSTGRES_USER: voice
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-voicechat_dev_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U voice -d voicechat"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Redis 缓存 ───────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: voicechat_redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # ── FastAPI 后端 ─────────────────────────────────────────────
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.backend
+    container_name: voicechat_backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://voice:${POSTGRES_PASSWORD:-voicechat_dev_password}@postgres:5432/voicechat
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-this-secret}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.openai.com/v1}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
+      WHISPER_MODEL_SIZE: ${WHISPER_MODEL_SIZE:-medium}
+      WHISPER_DEVICE: cuda
+      GPTSOVITS_DIR: /app/GPT-SoVITS
+      VOICE_MODELS_DIR: /app/storage/voice_models
+      PRETRAINED_MODELS_DIR: /app/storage/pretrained_models/GPT-SoVITS
+      STORAGE_DIR: /app/storage
+    volumes:
+      # 挂载模型文件（不打包进镜像）
+      - ../storage:/app/storage
+      - ../GPT-SoVITS:/app/GPT-SoVITS:ro
+    ports:
+      - "8000:8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  # ── Nginx 前端 ───────────────────────────────────────────────
+  frontend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.frontend
+    container_name: voicechat_frontend
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:

@@ -1,0 +1,43 @@
+version: '3.8'
+
+# 生产环境覆盖配置
+# 使用方式：docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  backend:
+    restart: always
+    environment:
+      WHISPER_DEVICE: cuda
+    command: >
+      sh -c "
+        cd /app &&
+        alembic -c backend/alembic/alembic.ini upgrade head &&
+        uvicorn backend.main:app --host 0.0.0.0 --port 8000 --workers 1
+      "
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  frontend:
+    restart: always
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  postgres:
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}  # 生产环境必须设置强密码
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  redis:
+    restart: always
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
