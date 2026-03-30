@@ -1,0 +1,54 @@
+# Claude Code
+.claude/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.env
+.venv
+venv/
+env/
+
+# Node / Frontend
+node_modules/
+frontend/dist/
+frontend/.env
+*.local
+
+# Models & Storage (大文件，不入库)
+storage/*
+!storage/.gitkeep
+GPT-SoVITS/
+*.ckpt
+*.pth
+*.safetensors
+
+# Database
+*.db
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Alembic
+backend/alembic/versions/*.pyc
+
+# Docker
+docker/.env
