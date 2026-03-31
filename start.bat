@@ -22,12 +22,12 @@ if %ERRORLEVEL% neq 0 (
 )
 
 echo [INFO] 启动后端服务（端口 8000）...
-start "VoiceChat Backend" cmd /k "conda activate voice-chat && cd backend && python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+start "VoiceChat Backend" cmd /k "call D:\Anaconda3\Scripts\activate.bat D:\Anaconda3\envs\voice-chat && python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload"
 
 timeout /t 3 /nobreak >nul
 
 echo [INFO] 启动前端服务（端口 5173）...
-start "VoiceChat Frontend" cmd /k "conda activate voice-chat && cd frontend && npm run dev"
+start "VoiceChat Frontend" cmd /k "call D:\Anaconda3\Scripts\activate.bat D:\Anaconda3\envs\voice-chat && cd frontend && npm run dev"
 
 echo.
 echo [SUCCESS] 服务启动中...
