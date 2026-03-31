@@ -92,19 +92,11 @@ def upgrade() -> None:
     op.create_index(op.f("ix_conversations_user_id"), "conversations", ["user_id"], unique=False)
 
     # ── messages 表 ───────────────────────────────────────────
-    op.execute("""
-        DO $$ BEGIN
-            CREATE TYPE message_role AS ENUM ('user', 'assistant');
-        EXCEPTION
-            WHEN duplicate_object THEN null;
-        END $$;
-    """)
-
     op.create_table(
         "messages",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("conversation_id", sa.Integer(), nullable=False),
-        sa.Column("role", sa.Enum("user", "assistant", name="message_role", create_type=False), nullable=False),
+        sa.Column("role", sa.String(length=20), nullable=False),
         sa.Column("content", sa.Text(), nullable=False),
         sa.Column("audio_url", sa.String(length=512), nullable=True),
         sa.Column(
@@ -143,6 +135,3 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_users_email"), table_name="users")
     op.drop_index(op.f("ix_users_id"), table_name="users")
     op.drop_table("users")
-
-    # 删除枚举类型
-    sa.Enum(name="message_role").drop(op.get_bind(), checkfirst=True)
