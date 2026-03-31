@@ -30,7 +30,7 @@ dependencies:
     - python-jose[cryptography]>=3.3
     - passlib[bcrypt]>=1.7
     # ── 配置 ──
-    - pydantic>=2.7
+    - pydantic[email]>=2.7
     - pydantic-settings>=2.3
     - python-dotenv>=1.0
     # ── STT ──
