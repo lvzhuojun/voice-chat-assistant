@@ -104,7 +104,7 @@ def upgrade() -> None:
         "messages",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("conversation_id", sa.Integer(), nullable=False),
-        sa.Column("role", sa.Enum("user", "assistant", name="message_role"), nullable=False),
+        sa.Column("role", sa.Enum("user", "assistant", name="message_role", create_type=False), nullable=False),
         sa.Column("content", sa.Text(), nullable=False),
         sa.Column("audio_url", sa.String(length=512), nullable=True),
         sa.Column(
