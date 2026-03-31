@@ -17,7 +17,7 @@ MODELS = [
         "name": "chinese-hubert-base",
         "repo_id": "TencentGameMate/chinese-hubert-base",
         "local_dir": PRETRAINED_DIR / "chinese-hubert-base",
-        "description": "中文 HuBERT 基础模型（STT 特征提取）",
+        "description": "中文 HuBERT 基础模型（TTS 推理音色匹配用）",
     },
     {
         "name": "chinese-roberta-wwm-ext-large",

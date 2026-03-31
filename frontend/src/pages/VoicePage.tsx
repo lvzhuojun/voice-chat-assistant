@@ -152,7 +152,7 @@ function VoiceCard({
         </span>
       </div>
 
-      {/* 训练参数 */}
+      {/* 模型信息 */}
       {(gptEpochs || sovitsEpochs) && (
         <div className="flex items-center gap-1 text-xs text-text-muted mb-2">
           <Layers className="w-3 h-3" />
