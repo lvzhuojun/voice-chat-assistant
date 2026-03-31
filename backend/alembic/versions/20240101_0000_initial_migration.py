@@ -92,9 +92,13 @@ def upgrade() -> None:
     op.create_index(op.f("ix_conversations_user_id"), "conversations", ["user_id"], unique=False)
 
     # ── messages 表 ───────────────────────────────────────────
-    # 创建消息角色枚举类型
-    message_role_enum = sa.Enum("user", "assistant", name="message_role")
-    message_role_enum.create(op.get_bind(), checkfirst=True)
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE message_role AS ENUM ('user', 'assistant');
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
+    """)
 
     op.create_table(
         "messages",
