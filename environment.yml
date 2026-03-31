@@ -28,7 +28,7 @@ dependencies:
     - redis>=5.0
     # ── 认证 ──
     - python-jose[cryptography]>=3.3
-    - passlib[bcrypt]>=1.7
+    - bcrypt>=4.0
     # ── 配置 ──
     - pydantic[email]>=2.7
     - pydantic-settings>=2.3

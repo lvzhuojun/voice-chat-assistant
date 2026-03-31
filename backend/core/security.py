@@ -8,8 +8,8 @@ from typing import Annotated, Optional
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -21,10 +21,6 @@ logger = get_logger(__name__)
 
 settings = get_settings()
 
-# bcrypt 密码哈希上下文
-# bcrypt 自动处理 salt，是当前最安全的密码哈希方案之一
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 # Bearer Token 解析器
 bearer_scheme = HTTPBearer(auto_error=True)
 
@@ -33,31 +29,11 @@ ALGORITHM = "HS256"
 
 
 def hash_password(password: str) -> str:
-    """
-    对密码进行 bcrypt 哈希。
-
-    Args:
-        password: 明文密码
-
-    Returns:
-        str: bcrypt 哈希值
-    """
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """
-    验证明文密码与哈希值是否匹配。
-    使用常量时间比较，防止时序攻击。
-
-    Args:
-        plain_password: 明文密码
-        hashed_password: 存储的 bcrypt 哈希值
-
-    Returns:
-        bool: 是否匹配
-    """
-    return pwd_context.verify(plain_password, hashed_password)
+    return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
 
 
 def create_access_token(user_id: int, email: str) -> str:
