@@ -1,6 +1,6 @@
 """
 音色模型管理 API 路由
-提供音色的导入、列表、详情、删除和选择接口
+提供音色的导入、列表、详情、删除、选择和测试接口
 """
 
 import json
@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -323,6 +324,62 @@ async def select_voice(
         message=f"已设置音色：{voice.voice_name}",
         voice_id=voice.voice_id,
     )
+
+
+@router.post("/{voice_db_id}/test")
+async def test_voice(
+    voice_db_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> Response:
+    """
+    测试音色合成（返回 WAV 音频）。
+
+    合成一句固定测试文字，用于验证音色模型是否可用。
+    返回 audio/wav 格式的二进制音频数据。
+
+    Args:
+        voice_db_id: 音色数据库 ID
+        current_user: 当前登录用户
+        db: 数据库会话
+
+    Returns:
+        WAV 音频文件（Content-Type: audio/wav）
+    """
+    result = await db.execute(
+        select(VoiceModel).where(
+            VoiceModel.id == voice_db_id,
+            VoiceModel.user_id == current_user.id,
+            VoiceModel.is_active == True,
+        )
+    )
+    voice = result.scalar_one_or_none()
+    if not voice:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="音色不存在或无权访问",
+        )
+
+    model_dir = Path(voice.gpt_model_path).parent
+
+    from backend.core.tts_engine import synthesize_speech
+
+    test_text = f"你好，我是{voice.voice_name}，这是一段测试语音。"
+    wav_bytes = await synthesize_speech(
+        text=test_text,
+        voice_id=voice.voice_id,
+        model_dir=model_dir,
+        language=voice.language,
+    )
+
+    if wav_bytes is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="音色合成失败，请检查模型文件是否完整",
+        )
+
+    logger.info(f"用户 {current_user.email} 测试音色：{voice.voice_name}")
+    return Response(content=wav_bytes, media_type="audio/wav")
 
 
 @router.get("/current/info", response_model=VoiceModelListItem)
