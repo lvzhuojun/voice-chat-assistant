@@ -171,6 +171,11 @@ async def websocket_chat(
             # ── 接收消息 ──────────────────────────────────────
             message = await websocket.receive()
 
+            # 客户端主动断开（切换对话/关闭页面）
+            if message.get("type") == "websocket.disconnect":
+                logger.info(f"WebSocket 客户端断开：user={user_id} conv={conversation_id}")
+                break
+
             # 判断消息类型
             is_binary = "bytes" in message and message["bytes"] is not None
             is_text = "text" in message and message["text"] is not None
