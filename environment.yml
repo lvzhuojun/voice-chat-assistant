@@ -38,7 +38,7 @@ dependencies:
     # ── 音频处理 ──
     - ffmpeg-python>=0.2
     - soundfile>=0.12
-    - numpy>=1.26
+    - "numpy>=1.26,<2.0"
     # ── LLM ──
     - openai>=1.30
     # ── 工具 ──

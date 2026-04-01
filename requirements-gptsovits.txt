@@ -1,0 +1,69 @@
+# GPT-SoVITS inference dependencies
+# Based on GPT-SoVITS/requirements.txt — inference-only subset (training, WebUI, ASR excluded)
+#
+# Install inside the voice-chat conda environment:
+#   conda activate voice-chat
+#   pip install -r requirements-gptsovits.txt
+#
+# NOTE: torch / torchaudio are managed by conda (environment.yml).
+#       Do NOT add them here; version mismatches will break CUDA.
+
+# ── Build flags ────────────────────────────────────────────────
+--no-binary=opencc
+
+# ── Core audio processing ──────────────────────────────────────
+# numpy<2.0 is a hard requirement: numba and librosa break on numpy 2.x
+numpy<2.0
+librosa==0.10.2
+numba
+scipy
+soundfile
+av>=11
+
+# ── Utilities ─────────────────────────────────────────────────
+tqdm
+psutil
+chardet
+PyYAML
+
+# ── Chinese text processing ────────────────────────────────────
+cn2an
+pypinyin
+jieba
+jieba_fast
+split-lang
+opencc
+
+# ── Multilingual G2P ───────────────────────────────────────────
+g2p_en
+ToJyutping
+g2pk2
+ko_pron
+
+# ── Language detection / segmentation ─────────────────────────
+fast_langdetect>=0.3.1
+wordsegment
+
+# ── ML / transformer stack ─────────────────────────────────────
+sentencepiece
+transformers>=4.43,<=4.50
+peft<0.18.0
+rotary_embedding_torch
+x_transformers
+torchmetrics<=1.5
+pytorch-lightning>=2.4
+
+# ── Skipped (not needed for inference / handled elsewhere) ─────
+# torch / torchaudio      -- managed by conda environment.yml
+# soundfile               -- already in main env (kept above for safety)
+# ffmpeg-python           -- already in main env
+# faster-whisper          -- already in main env (STT, not TTS)
+# ctranslate2             -- installed as faster-whisper dependency
+# onnxruntime-gpu         -- conflicts with onnxruntime from faster-whisper
+# gradio                  -- WebUI only, not used in our backend
+# tensorboard             -- training only
+# modelscope              -- heavy Alibaba model hub, training only
+# funasr                  -- ASR toolkit (heavy), training only
+# pyopenjtalk             -- Japanese G2P, complex Windows native build
+# python_mecab_ko         -- Linux only (sys_platform != win32)
+# fastapi / pydantic      -- already in main env

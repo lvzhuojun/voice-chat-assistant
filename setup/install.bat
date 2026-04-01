@@ -20,7 +20,7 @@ conda env list | findstr /C:"voice-chat" >nul 2>&1
 if %ERRORLEVEL% equ 0 (
     echo [INFO] voice-chat environment already exists
     echo [INFO] To recreate it, run: conda env remove -n voice-chat
-    goto :frontend
+    goto :gptsovits_deps
 )
 
 echo [INFO] Creating conda environment from environment.yml (Python 3.10)...
@@ -32,6 +32,21 @@ if %ERRORLEVEL% neq 0 (
 )
 
 echo [SUCCESS] conda environment created
+
+:gptsovits_deps
+echo.
+echo [INFO] Installing GPT-SoVITS inference dependencies...
+echo [INFO] This may take several minutes on first run.
+conda run -n voice-chat pip install -r requirements-gptsovits.txt
+if %ERRORLEVEL% neq 0 (
+    echo [ERROR] GPT-SoVITS dependencies install failed.
+    echo [INFO] Try manually: conda activate voice-chat
+    echo [INFO]               pip install -r requirements-gptsovits.txt
+    pause
+    exit /b 1
+)
+
+echo [SUCCESS] GPT-SoVITS inference dependencies installed
 
 :frontend
 echo.
