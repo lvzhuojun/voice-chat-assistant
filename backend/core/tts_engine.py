@@ -113,10 +113,10 @@ def _load_tts_model(
         logger.info(f"TTS 模型加载成功：voice_id={voice_id}")
         return tts
 
-    except ImportError as e:
+    except (ImportError, OSError) as e:
         logger.error(
             f"无法导入 TTS_infer_pack.TTS：{e}\n"
-            "请确保 GPT-SoVITS 目录已克隆且路径正确"
+            "请确保 GPT-SoVITS 目录已克隆且 torchaudio 版本与 torch 匹配"
         )
         return None
     except Exception as e:
