@@ -1,25 +1,24 @@
 @echo off
-REM 克隆 GPT-SoVITS 源码到 GPT-SoVITS/ 目录
-REM 与 voice-cloning-service 保持一致
+REM Clone GPT-SoVITS source into GPT-SoVITS/ directory
 
-echo [INFO] 开始克隆 GPT-SoVITS...
+echo [INFO] Cloning GPT-SoVITS...
 
 if exist GPT-SoVITS (
-    echo [INFO] GPT-SoVITS 目录已存在，跳过克隆
-    echo [INFO] 如需更新，请手动执行：cd GPT-SoVITS && git pull
+    echo [INFO] GPT-SoVITS directory already exists, skipping clone
+    echo [INFO] To update, run manually: cd GPT-SoVITS ^&^& git pull
     goto :end
 )
 
 git clone https://github.com/RVC-Boss/GPT-SoVITS.git GPT-SoVITS
 if %ERRORLEVEL% neq 0 (
-    echo [ERROR] 克隆失败，请检查网络连接或 Git 配置
+    echo [ERROR] Clone failed. Check your network connection or Git config.
     pause
     exit /b 1
 )
 
-echo [SUCCESS] GPT-SoVITS 克隆完成
+echo [SUCCESS] GPT-SoVITS cloned successfully
 
 :end
 echo.
-echo [INFO] 下一步：运行 python setup/download_models.py 下载预训练模型
+echo [INFO] Next step: run  python setup/download_models.py  to download pretrained models
 pause
