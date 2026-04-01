@@ -28,7 +28,8 @@ _model_cache: OrderedDict[str, object] = OrderedDict()
 def _ensure_gptsovits_in_path() -> bool:
     """
     将 GPT-SoVITS 源码目录加入 sys.path，使 TTS_infer_pack 可导入。
-    与项目一保持一致，从 settings.gptsovits_dir 读取路径。
+    TTS_infer_pack 位于 <gptsovits_dir>/GPT_SoVITS/TTS_infer_pack，
+    因此需要将 <gptsovits_dir>/GPT_SoVITS 加入 sys.path。
 
     Returns:
         bool: 路径是否已成功加入
@@ -41,10 +42,19 @@ def _ensure_gptsovits_in_path() -> bool:
         )
         return False
 
-    gptsovits_str = str(gptsovits_dir)
-    if gptsovits_str not in sys.path:
-        sys.path.insert(0, gptsovits_str)
-        logger.debug(f"已将 GPT-SoVITS 目录加入 sys.path：{gptsovits_str}")
+    # TTS_infer_pack 位于 GPT-SoVITS/GPT_SoVITS/ 子目录下
+    infer_root = gptsovits_dir / "GPT_SoVITS"
+    if not infer_root.exists():
+        logger.error(
+            f"GPT_SoVITS 子目录不存在：{infer_root}\n"
+            "请确认 GPT-SoVITS 仓库已完整克隆"
+        )
+        return False
+
+    infer_root_str = str(infer_root)
+    if infer_root_str not in sys.path:
+        sys.path.insert(0, infer_root_str)
+        logger.debug(f"已将 GPT_SoVITS 子目录加入 sys.path：{infer_root_str}")
 
     return True
 
