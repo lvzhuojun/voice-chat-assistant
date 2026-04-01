@@ -1,138 +1,202 @@
-# 系统架构文档
+# Architecture
 
-## 总体架构
+[中文 README](README.zh.md) | [English README](README.md)
+
+---
+
+## Table of Contents
+
+- [System Overview](#system-overview)
+- [WebSocket Message Flow](#websocket-message-flow)
+- [Voice Model File Layout](#voice-model-file-layout)
+- [Database Schema](#database-schema)
+- [Production Deployment](#production-deployment)
+
+---
+
+## System Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                         浏览器 (React)                           │
+│                        Browser (React)                           │
 │                                                                   │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌────────────────┐  │
-│  │ LoginPage│  │ChatPage  │  │VoicePage │  │RegisterPage    │  │
+│  │LoginPage │  │ChatPage  │  │VoicePage │  │RegisterPage    │  │
 │  └──────────┘  └──────────┘  └──────────┘  └────────────────┘  │
-│       │              │              │                             │
-│  ┌────▼──────────────▼──────────────▼─────────────────────────┐ │
-│  │              Zustand Stores (auth / chat / voice)           │ │
-│  └────────────────────────────┬────────────────────────────────┘ │
-│                               │ axios / WebSocket                │
-└───────────────────────────────┼─────────────────────────────────┘
-                                │
-                    ┌───────────▼──────────┐
-                    │      Nginx (80/443)   │
-                    │  反向代理 + WS 支持   │
-                    └───────────┬──────────┘
-                                │
-              ┌─────────────────┼──────────────────┐
-              │                 │                  │
-    ┌─────────▼──────┐   ┌──────▼──────┐  ┌───────▼───────┐
-    │  REST API       │   │  WebSocket  │  │  静态文件      │
-    │  /api/*         │   │  /ws/chat/* │  │  (前端构建)    │
-    └─────────┬──────┘   └──────┬──────┘  └───────────────┘
-              │                 │
-    ┌─────────▼─────────────────▼──────────────────────────┐
-    │                   FastAPI 后端                         │
-    │                                                        │
-    │  ┌──────────┐  ┌──────────┐  ┌────────────────────┐  │
-    │  │ auth.py  │  │voices.py │  │  conversations.py  │  │
-    │  └──────────┘  └──────────┘  └────────────────────┘  │
-    │                                                        │
-    │  ┌─────────────────────────────────────────────────┐  │
-    │  │              Pipeline (核心管道)                  │  │
-    │  │                                                   │  │
-    │  │  音频数据                                         │  │
-    │  │     │                                             │  │
-    │  │  ┌──▼──────────────┐                             │  │
-    │  │  │  STT Engine     │  faster-whisper (CUDA)      │  │
-    │  │  │  WebM→WAV→文字  │                             │  │
-    │  │  └──┬──────────────┘                             │  │
-    │  │     │ 识别文字                                    │  │
-    │  │  ┌──▼──────────────┐                             │  │
-    │  │  │  LLM Client     │  OpenAI 兼容 / Mock         │  │
-    │  │  │  流式文字回复    │                             │  │
-    │  │  └──┬──────────────┘                             │  │
-    │  │     │ AI 文字                                     │  │
-    │  │  ┌──▼──────────────┐                             │  │
-    │  │  │  TTS Engine     │  GPT-SoVITS v2 (CUDA)      │  │
-    │  │  │  文字→克隆音色  │  LRU缓存最多3个模型         │  │
-    │  │  └──┬──────────────┘                             │  │
-    │  │     │ WAV 音频块                                  │  │
-    │  └─────┼───────────────────────────────────────────┘  │
-    │        │ WebSocket 推送                                 │
-    └────────┼──────────────────────────────────────────────┘
+│        │             │              │                             │
+│  ┌─────▼─────────────▼──────────────▼────────────────────────┐  │
+│  │           Zustand Stores  (auth / chat / voice)            │  │
+│  └───────────────────────────┬────────────────────────────────┘  │
+│                              │  axios / WebSocket                 │
+└──────────────────────────────┼─────────────────────────────────┘
+                               │
+                   ┌───────────▼──────────┐
+                   │     Nginx (80/443)    │
+                   │  reverse proxy + WS  │
+                   └───────────┬──────────┘
+                               │
+             ┌─────────────────┼──────────────────┐
+             │                 │                  │
+   ┌─────────▼──────┐  ┌───────▼──────┐  ┌───────▼───────┐
+   │  REST API       │  │  WebSocket   │  │  Static Files  │
+   │  /api/*         │  │  /ws/chat/*  │  │  (frontend)    │
+   └─────────┬──────┘  └───────┬──────┘  └───────────────┘
+             │                 │
+   ┌─────────▼─────────────────▼──────────────────────────┐
+   │                     FastAPI                            │
+   │                                                        │
+   │  ┌──────────┐  ┌──────────┐  ┌────────────────────┐  │
+   │  │ auth.py  │  │voices.py │  │ conversations.py   │  │
+   │  └──────────┘  └──────────┘  └────────────────────┘  │
+   │                                                        │
+   │  ┌─────────────────────────────────────────────────┐  │
+   │  │                  Pipeline                        │  │
+   │  │                                                   │  │
+   │  │  raw audio                                        │  │
+   │  │      │                                            │  │
+   │  │  ┌───▼────────────────┐                          │  │
+   │  │  │  STT Engine        │  faster-whisper (CUDA)   │  │
+   │  │  │  WebM → WAV → text │                          │  │
+   │  │  └───┬────────────────┘                          │  │
+   │  │      │ transcript text                            │  │
+   │  │  ┌───▼────────────────┐                          │  │
+   │  │  │  LLM Client        │  OpenAI-compatible       │  │
+   │  │  │  streaming reply   │  (mock if no key)        │  │
+   │  │  └───┬────────────────┘                          │  │
+   │  │      │ reply text                                 │  │
+   │  │  ┌───▼────────────────┐                          │  │
+   │  │  │  TTS Engine        │  GPT-SoVITS v2 (CUDA)   │  │
+   │  │  │  text → audio      │  LRU cache (max 3)       │  │
+   │  │  └───┬────────────────┘                          │  │
+   │  │      │ WAV chunks                                 │  │
+   │  └──────┼───────────────────────────────────────────┘  │
+   │         │ push over WebSocket                           │
+   └─────────┼──────────────────────────────────────────────┘
              │
-    ┌────────┼──────────────────────────────────────────────┐
-    │        │           数据存储层                           │
-    │  ┌─────▼──────┐  ┌───────────────┐  ┌─────────────┐  │
-    │  │ PostgreSQL  │  │     Redis     │  │  文件系统    │  │
-    │  │ 用户/对话   │  │ 会话/上下文   │  │ 模型文件     │  │
-    │  │ 消息/音色   │  │ 当前音色选择  │  │ 音频缓存     │  │
-    │  └────────────┘  └───────────────┘  └─────────────┘  │
-    └───────────────────────────────────────────────────────┘
+   ┌─────────┼──────────────────────────────────────────────┐
+   │         │            Storage Layer                       │
+   │  ┌──────▼─────┐  ┌───────────────┐  ┌──────────────┐  │
+   │  │ PostgreSQL  │  │     Redis     │  │  Filesystem  │  │
+   │  │ users       │  │ sessions      │  │ model files  │  │
+   │  │ voices      │  │ context       │  │ audio cache  │  │
+   │  │ messages    │  │ active voice  │  │              │  │
+   │  └────────────┘  └───────────────┘  └──────────────┘  │
+   └───────────────────────────────────────────────────────┘
 ```
 
-## WebSocket 消息流
+---
+
+## WebSocket Message Flow
 
 ```
-用户按住录音
-    │
-    ▼
-[客户端] MediaRecorder 采集 WebM
-    │ 二进制帧
-    ▼
-[服务端] ws.py 接收音频帧
-    │
-    ▼
-[STT] faster-whisper 转写
-    │ {"type":"transcript","text":"..."}
-    ▼
-[客户端] 显示识别文字
-    │
-[LLM] 流式请求
-    │ {"type":"llm_chunk","text":"..."}  ×N
-    ▼
-[客户端] 打字机效果显示
-    │
-[TTS] GPT-SoVITS 合成
-    │ {"type":"audio_chunk","data":"base64..."}  ×N
-    ▼
-[客户端] 播放音频
-    │
-    ▼
-{"type":"done","message_id":"xxx"}
+User holds record button
+        │
+        ▼
+[Browser]  MediaRecorder  →  WebM binary frames
+        │
+        │ (binary WebSocket frames)
+        ▼
+[Server]   ws.py  receives audio chunks
+        │
+        ▼
+[STT]      faster-whisper transcribes
+        │
+        │  {"type": "transcript", "text": "..."}
+        ▼
+[Browser]  displays transcript
+
+[LLM]      streaming request
+        │
+        │  {"type": "llm_chunk", "text": "..."}  × N
+        ▼
+[Browser]  typewriter effect
+
+[TTS]      GPT-SoVITS synthesis
+        │
+        │  {"type": "audio_chunk", "data": "<base64>"}  × N
+        ▼
+[Browser]  plays audio chunks
+
+        │
+        ▼
+{"type": "done", "message_id": "..."}
 ```
 
-## 模型文件结构（对接项目一）
+### WebSocket Message Types
+
+| Direction | Type | Payload | Description |
+|-----------|------|---------|-------------|
+| Client → Server | binary | `<audio bytes>` | WebM/WAV audio frame |
+| Client → Server | text | `{"type":"text","content":"..."}` | Text input |
+| Server → Client | `transcript` | `{"type":"transcript","text":"..."}` | STT result |
+| Server → Client | `llm_chunk` | `{"type":"llm_chunk","text":"..."}` | LLM streaming token |
+| Server → Client | `audio_chunk` | `{"type":"audio_chunk","data":"<b64>"}` | TTS audio chunk |
+| Server → Client | `done` | `{"type":"done","message_id":"..."}` | Turn complete |
+| Server → Client | `error` | `{"type":"error","message":"..."}` | Error |
+
+---
+
+## Voice Model File Layout
+
+Files produced by `voice-cloning-service` (Project 1) and stored here after import:
 
 ```
-storage/voice_models/{user_id}/{voice_id}/
-├── {voice_id}_gpt.ckpt         # GPT 模型（来自 voice-cloning-service）
-├── {voice_id}_sovits.pth       # SoVITS 模型
-├── metadata.json               # 元数据
-└── reference.wav               # 推理参考音频（必须）
+storage/voice_models/
+└── {user_id}/
+    └── {voice_id}/
+        ├── {voice_id}_gpt.ckpt      # GPT model weights
+        ├── {voice_id}_sovits.pth    # SoVITS model weights
+        ├── metadata.json            # Name, language, training params
+        └── reference.wav           # Reference audio (required for inference)
 ```
 
-## 数据库关系
+Required pretrained models (shared, not per-voice):
 
 ```
-users ──┬── voice_models (user_id FK)
-        └── conversations ── messages
+storage/pretrained_models/GPT-SoVITS/
+├── chinese-hubert-base/
+└── chinese-roberta-wwm-ext-large/
+```
+
+---
+
+## Database Schema
+
+```
+users ──┬── voice_models  (voice_models.user_id → users.id)
+        └── conversations (conversations.user_id → users.id)
                 │
-                └── voice_model_id FK → voice_models
+                ├── voice_model_id → voice_models.id
+                └── messages      (messages.conversation_id → conversations.id)
 ```
 
-## 部署架构（生产）
+**Key tables:**
+
+| Table | Primary columns |
+|-------|----------------|
+| `users` | `id`, `email`, `username`, `hashed_password`, `is_active` |
+| `voice_models` | `id`, `voice_id` (UUID), `voice_name`, `language`, `gpt_model_path`, `sovits_model_path`, `reference_wav_path`, `user_id` |
+| `conversations` | `id`, `title`, `user_id`, `voice_model_id` |
+| `messages` | `id`, `conversation_id`, `role` (user/assistant), `content`, `audio_url` |
+
+---
+
+## Production Deployment
 
 ```
 Internet
     │
     ▼
-[Nginx] :80/:443
-    ├── / ──────────── frontend (静态文件)
-    ├── /api/* ─────── backend FastAPI :8000
-    └── /ws/* ──────── backend FastAPI :8000 (WebSocket)
+[Nginx]  :80 / :443
+    ├── /          ──────── frontend static files
+    ├── /api/*     ──────── FastAPI backend :8000
+    └── /ws/*      ──────── FastAPI backend :8000  (WebSocket upgrade)
 
-[Docker Compose]
-  - frontend (nginx)
-  - backend (conda + PyTorch)
-  - postgres
-  - redis
+[Docker Compose services]
+    ├── frontend   (nginx + built React)
+    ├── backend    (conda + PyTorch + FastAPI)
+    ├── postgres   (PostgreSQL 14)
+    └── redis      (Redis 7)
 ```
+
+See [docs/DEPLOY.md](docs/DEPLOY.md) for the full production deployment guide.

@@ -1,23 +1,35 @@
-# 音色模型导入指南
+# Voice Model Import Guide
 
-本文档说明如何将 **voice-cloning-service**（项目一）训练好的音色模型导入到 **voice-chat-assistant**（本项目）使用。
+This document explains how to import a voice model trained in **voice-cloning-service** (Project 1) into **voice-chat-assistant** (this project).
 
-## 项目一输出的文件结构
+---
 
-在 voice-cloning-service 中，每个音色训练完成后会产出：
+## Table of Contents
+
+- [Output Structure from Project 1](#output-structure-from-project-1)
+- [Method 1 — Web UI Upload (Recommended)](#method-1--web-ui-upload-recommended)
+- [Method 2 — API Upload](#method-2--api-upload)
+- [Notes and Constraints](#notes-and-constraints)
+- [Backend Inference Reference](#backend-inference-reference)
+
+---
+
+## Output Structure from Project 1
+
+After training completes in `voice-cloning-service`, each voice produces:
 
 ```
 voice-cloning-service/
 └── storage/
     └── models/
         └── {voice_id}/
-            ├── {voice_id}_gpt.ckpt        # GPT 模型权重
-            ├── {voice_id}_sovits.pth      # SoVITS 模型权重
-            ├── metadata.json              # 训练元数据
-            └── reference.wav             # 参考音频（推理必须）
+            ├── {voice_id}_gpt.ckpt      # GPT model weights
+            ├── {voice_id}_sovits.pth    # SoVITS model weights
+            ├── metadata.json            # Training metadata
+            └── reference.wav           # Reference audio (required for inference)
 ```
 
-### metadata.json 示例
+**`metadata.json` example:**
 
 ```json
 {
@@ -33,78 +45,92 @@ voice-cloning-service/
 }
 ```
 
-## 导入方法一：通过 Web 界面上传（推荐）
+> `base_model_version` **must** be `"GPT-SoVITS v2"` — other versions are not supported.
 
-### 1. 打包音色文件为 ZIP
+---
 
-在 voice-cloning-service 目录中执行：
+## Method 1 — Web UI Upload (Recommended)
+
+### Step 1: Pack the voice folder into a ZIP
+
+The ZIP must have the four files **at the root** (no nested folders).
+
+**Windows PowerShell:**
+
+```powershell
+$VOICE_ID = "550e8400-e29b-41d4-a716-446655440000"
+Compress-Archive `
+  -Path "storage/models/$VOICE_ID/*" `
+  -DestinationPath "$VOICE_ID.zip"
+```
+
+**Linux / macOS:**
 
 ```bash
-# Windows PowerShell
-$VOICE_ID = "你的voice_id"
-Compress-Archive -Path "storage/models/$VOICE_ID/*" -DestinationPath "$VOICE_ID.zip"
-
-# Linux/Mac
-VOICE_ID="你的voice_id"
-cd storage/models/$VOICE_ID
-zip -r ../../$VOICE_ID.zip .
+VOICE_ID="550e8400-e29b-41d4-a716-446655440000"
+cd voice-cloning-service/storage/models/$VOICE_ID
+zip -r ../../../../$VOICE_ID.zip .
 ```
 
-ZIP 内部结构必须如下（**直接在根目录，不要嵌套文件夹**）：
+Expected ZIP contents:
 
 ```
-your_voice.zip
-├── {voice_id}_gpt.ckpt
-├── {voice_id}_sovits.pth
+550e8400-....zip
+├── 550e8400-..._gpt.ckpt
+├── 550e8400-..._sovits.pth
 ├── metadata.json
 └── reference.wav
 ```
 
-### 2. 在 Web 界面导入
+### Step 2: Upload via the web interface
 
-1. 打开 voice-chat-assistant，登录账号
-2. 点击左上角菜单 → **音色管理**
-3. 将 ZIP 文件拖拽到虚线上传区，或点击选择文件
-4. 等待上传和验证完成（会检查四个必要文件）
-5. 导入成功后，在卡片网格中可见新音色
-6. 点击**设为当前**即可在对话中使用该音色
+1. Open voice-chat-assistant and log in.
+2. Click the menu → **Voice Management**.
+3. Drag the ZIP onto the upload area, or click to browse.
+4. Wait for validation and upload to complete (the server checks all four required files).
+5. The new voice appears as a card in the grid.
+6. Click **Set as Current** to use it in conversations.
 
-## 导入方法二：手动复制文件
+---
 
-如果前端不可用，可以直接复制文件：
+## Method 2 — API Upload
+
+Use this when the frontend is unavailable or you want to script imports.
 
 ```bash
-# 1. 在本项目创建目录
-mkdir -p storage/voice_models/{user_id}/{voice_id}
+VOICE_ID="550e8400-e29b-41d4-a716-446655440000"
+JWT_TOKEN="eyJ..."
 
-# 2. 从项目一复制四个文件
-cp ../voice-cloning-service/storage/models/{voice_id}/{voice_id}_gpt.ckpt \
-   storage/voice_models/{user_id}/{voice_id}/
-
-cp ../voice-cloning-service/storage/models/{voice_id}/{voice_id}_sovits.pth \
-   storage/voice_models/{user_id}/{voice_id}/
-
-cp ../voice-cloning-service/storage/models/{voice_id}/metadata.json \
-   storage/voice_models/{user_id}/{voice_id}/
-
-cp ../voice-cloning-service/storage/models/{voice_id}/reference.wav \
-   storage/voice_models/{user_id}/{voice_id}/
-
-# 3. 通过 API 注册到数据库（上传 ZIP 包）
 curl -X POST http://localhost:8000/api/voices/import \
-  -H "Authorization: Bearer {jwt_token}" \
-  -F "file=@{voice_id}.zip"
+  -H "Authorization: Bearer $JWT_TOKEN" \
+  -F "file=@${VOICE_ID}.zip"
 ```
 
-## 推理加载方式（后端实现参考）
+On success, the server returns `201 Created` with the voice record. See [API.md](API.md#post-apivoicesimport) for the full response schema.
 
-本项目 TTS 引擎严格按照以下方式加载模型（与项目一一致）：
+---
+
+## Notes and Constraints
+
+| Constraint | Detail |
+|------------|--------|
+| **`reference.wav` is required** | Used as the reference audio during inference — must be the original sample from training |
+| **Model version** | Only `GPT-SoVITS v2` is supported (`base_model_version` field in `metadata.json`) |
+| **Pretrained models** | `chinese-hubert-base` and `chinese-roberta-wwm-ext-large` must be present in `storage/pretrained_models/GPT-SoVITS/` — run `python setup/download_models.py` if missing |
+| **VRAM limit** | TTS engine keeps at most 3 voice models in GPU memory (LRU eviction) |
+| **File size** | A complete voice ZIP is typically 300 MB – 1 GB; allow time for upload on slow connections |
+
+---
+
+## Backend Inference Reference
+
+The TTS engine loads each voice model as follows:
 
 ```python
 from TTS_infer_pack.TTS import TTS, TTS_Config
 
 voice_id = "550e8400-e29b-41d4-a716-446655440000"
-user_id = "1"
+user_id  = "1"
 model_dir = f"storage/voice_models/{user_id}/{voice_id}"
 
 config = TTS_Config({
@@ -112,45 +138,36 @@ config = TTS_Config({
         "device": "cuda",
         "is_half": True,
         "version": "v2",
-        "t2s_weights_path": f"{model_dir}/{voice_id}_gpt.ckpt",
-        "vits_weights_path": f"{model_dir}/{voice_id}_sovits.pth",
+        "t2s_weights_path":    f"{model_dir}/{voice_id}_gpt.ckpt",
+        "vits_weights_path":   f"{model_dir}/{voice_id}_sovits.pth",
         "cnhuhbert_base_path": "storage/pretrained_models/GPT-SoVITS/chinese-hubert-base",
-        "bert_base_path": "storage/pretrained_models/GPT-SoVITS/chinese-roberta-wwm-ext-large",
+        "bert_base_path":      "storage/pretrained_models/GPT-SoVITS/chinese-roberta-wwm-ext-large",
     }
 })
 tts = TTS(config)
 
-# 推理（必须传入 reference.wav）
+# Inference (reference.wav must be provided)
 import soundfile as sf
-ref_audio_path = f"{model_dir}/reference.wav"
 
-result_generator = tts.run({
-    "text": "你好，这是测试",
-    "text_lang": "zh",
-    "ref_audio_path": ref_audio_path,
-    "prompt_lang": "zh",
-    "prompt_text": "",
-    "top_k": 5,
-    "top_p": 1.0,
-    "temperature": 1.0,
-    "text_split_method": "cut5",
-    "batch_size": 1,
-    "speed_factor": 1.0,
-    "fragment_interval": 0.3,
-    "streaming_mode": False,
-    "seed": -1,
-    "parallel_infer": True,
+result = tts.run({
+    "text":               "你好，这是测试",
+    "text_lang":          "zh",
+    "ref_audio_path":     f"{model_dir}/reference.wav",
+    "prompt_lang":        "zh",
+    "prompt_text":        "",
+    "top_k":              5,
+    "top_p":              1.0,
+    "temperature":        1.0,
+    "text_split_method":  "cut5",
+    "batch_size":         1,
+    "speed_factor":       1.0,
+    "fragment_interval":  0.3,
+    "streaming_mode":     False,
+    "seed":               -1,
+    "parallel_infer":     True,
     "repetition_penalty": 1.35,
 })
 
-for sr, audio_data in result_generator:
-    sf.write("output.wav", audio_data, sr)
+for sample_rate, audio_data in result:
+    sf.write("output.wav", audio_data, sample_rate)
 ```
-
-## 注意事项
-
-1. **reference.wav 不可缺少**：这是推理时的参考音色，必须是训练时使用的原始参考音频
-2. **模型版本**：本项目只支持 `GPT-SoVITS v2`，`base_model_version` 字段必须为 `"GPT-SoVITS v2"`
-3. **预训练模型**：需要提前下载 `chinese-hubert-base` 和 `chinese-roberta-wwm-ext-large` 到 `storage/pretrained_models/GPT-SoVITS/`，运行 `python setup/download_models.py`
-4. **VRAM 限制**：TTS 引擎使用 LRU 缓存，最多同时加载 3 个音色模型，避免 VRAM 溢出
-5. **文件大小**：完整音色包（包含模型权重）通常 300MB~1GB，上传时请耐心等待
