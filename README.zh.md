@@ -15,30 +15,42 @@
 
 ## 项目简介
 
-本项目是两项目语音克隆系统的**第二阶段**：
+本项目是两项目语音克隆系统的**第二阶段**。
 
-```
-┌─────────────────────────┐        ┌──────────────────────────────┐
-│  voice-cloning-service  │        │    voice-chat-assistant       │
-│  （项目一）              │        │    （本项目）                  │
-│                         │        │                               │
-│  上传音频样本            │        │  ┌─────┐  ┌─────┐  ┌─────┐  │
-│  微调 GPT-SoVITS         │──ZIP──▶│  │ STT │─▶│ LLM │─▶│ TTS │  │
-│  导出音色模型            │        │  └─────┘  └─────┘  └─────┘  │
-└─────────────────────────┘        │  实时 WebSocket 对话          │
-                                   └──────────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph p1["voice-cloning-service · 项目一"]
+        direction TB
+        r[上传音频样本] --> f[微调 GPT-SoVITS]
+        f --> e[导出音色模型]
+    end
+
+    subgraph p2["voice-chat-assistant · 本项目"]
+        direction LR
+        stt[STT] --> llm[LLM] --> tts[TTS]
+    end
+
+    p1 -- "导入 ZIP" --> p2
+    mic(["🎤 用户"]) --> stt
+    tts --> spk(["🔊 音频"])
 ```
 
 **单轮对话流程：**
 
-```
-用户说话 → STT（faster-whisper）→ 文字
-                                     ↓
-                            LLM（OpenAI 兼容接口）→ 回复文字
-                                     ↓
-                            TTS（GPT-SoVITS v2）→ 克隆音色语音
-                                     ↓
-                            浏览器播放音频
+```mermaid
+sequenceDiagram
+    participant U as 🎤 用户
+    participant S as STT (faster-whisper)
+    participant L as LLM (OpenAI 兼容)
+    participant T as TTS (GPT-SoVITS v2)
+    participant B as 🔊 浏览器
+
+    U  ->> S : 音频帧 (WebSocket)
+    S  ->> L : 转写文字
+    L  -->> B: llm_chunk × N（流式）
+    L  ->> T : 完整回复
+    T  -->> B: audio_chunk × N（流式）
+    B  ->> B : 播放克隆音色语音
 ```
 
 ---

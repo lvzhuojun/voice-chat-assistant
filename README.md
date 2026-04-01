@@ -15,30 +15,42 @@
 
 ## Overview
 
-This project is the **second stage** of a two-project voice-cloning system:
+This project is the **second stage** of a two-project voice-cloning system.
 
-```
-┌─────────────────────────┐        ┌──────────────────────────────┐
-│  voice-cloning-service  │        │    voice-chat-assistant       │
-│  (Project 1)            │        │    (This Project)             │
-│                         │        │                               │
-│  Upload audio samples   │        │  ┌─────┐  ┌─────┐  ┌─────┐  │
-│  Fine-tune GPT-SoVITS   │──ZIP──▶│  │ STT │─▶│ LLM │─▶│ TTS │  │
-│  Export voice model     │        │  └─────┘  └─────┘  └─────┘  │
-└─────────────────────────┘        │  Real-time WebSocket chat     │
-                                   └──────────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph p1["voice-cloning-service · Project 1"]
+        direction TB
+        r[Record audio samples] --> f[Fine-tune GPT-SoVITS]
+        f --> e[Export voice model]
+    end
+
+    subgraph p2["voice-chat-assistant · This Project"]
+        direction LR
+        stt[STT] --> llm[LLM] --> tts[TTS]
+    end
+
+    p1 -- "import ZIP" --> p2
+    mic(["🎤 User"]) --> stt
+    tts --> spk(["🔊 Audio"])
 ```
 
-**Pipeline per turn:**
+**Per-turn pipeline:**
 
-```
-User speaks → STT (faster-whisper) → text
-                                        ↓
-                               LLM (OpenAI-compatible) → reply text
-                                        ↓
-                               TTS (GPT-SoVITS v2) → cloned-voice audio
-                                        ↓
-                               Browser plays audio
+```mermaid
+sequenceDiagram
+    participant U as 🎤 User
+    participant S as STT (faster-whisper)
+    participant L as LLM (OpenAI-compatible)
+    participant T as TTS (GPT-SoVITS v2)
+    participant B as 🔊 Browser
+
+    U  ->> S : audio frame (WebSocket)
+    S  ->> L : transcript text
+    L  -->> B: llm_chunk × N  (streaming)
+    L  ->> T : complete reply
+    T  -->> B: audio_chunk × N (streaming)
+    B  ->> B : play cloned-voice audio
 ```
 
 ---
