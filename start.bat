@@ -51,9 +51,9 @@ echo [INFO] PostgreSQL is ready
 
 REM Step 2: Run database migrations
 echo [INFO] Running Alembic migrations...
-alembic upgrade head
+alembic -c backend/alembic/alembic.ini upgrade head
 if %ERRORLEVEL% neq 0 (
-    echo [WARNING] Alembic returned non-zero (may already be up to date), continuing...
+    echo [WARNING] Alembic returned non-zero - may already be up to date, continuing...
 )
 
 REM Step 3: Start backend
