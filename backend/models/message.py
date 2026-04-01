@@ -3,7 +3,7 @@
 """
 
 from datetime import datetime
-from sqlalchemy import String, DateTime, Integer, ForeignKey, Text, Enum
+from sqlalchemy import String, DateTime, Integer, ForeignKey, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 import enum
@@ -35,7 +35,7 @@ class Message(Base):
     )
     # 消息角色：user 或 assistant
     role: Mapped[str] = mapped_column(
-        Enum("user", "assistant", name="message_role"),
+        String(20),
         nullable=False,
     )
     # 消息文字内容

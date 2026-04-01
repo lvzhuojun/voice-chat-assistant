@@ -152,13 +152,13 @@ async def health_check() -> dict:
     健康检查接口。
     返回 GPU 状态、模型加载情况、音色数量等信息。
     """
-    import torch
     from backend.core.stt_engine import is_whisper_loaded
     from backend.core.tts_engine import get_cached_model_count
 
-    # GPU 信息
+    # GPU 信息（torch 可能尚未安装时降级为 unavailable）
     gpu_info: dict = {"available": False}
     try:
+        import torch
         if torch.cuda.is_available():
             gpu_idx = 0
             gpu_info = {
