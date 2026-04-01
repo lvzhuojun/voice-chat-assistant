@@ -188,6 +188,59 @@ async def list_voices(
     return [VoiceModelListItem.model_validate(v) for v in voices]
 
 
+@router.get("/current/info", response_model=VoiceModelListItem)
+async def get_current_voice(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> VoiceModelListItem:
+    """
+    获取当前用户选择的音色信息。
+    从 Redis 读取 voice_id，再查询数据库。
+
+    Args:
+        current_user: 当前登录用户
+        db: 数据库会话
+
+    Returns:
+        VoiceModelListItem: 当前音色信息
+    """
+    # 从 Redis 获取当前音色 ID
+    redis = await get_redis()
+    voice_id = None
+    if redis:
+        try:
+            key = f"user:{current_user.id}:current_voice"
+            voice_id = await redis.get(key)
+        except Exception as e:
+            logger.warning(f"Redis 读取当前音色失败：{e}")
+
+    if not voice_id:
+        # 没有选择，返回第一个可用音色
+        result = await db.execute(
+            select(VoiceModel)
+            .where(VoiceModel.user_id == current_user.id, VoiceModel.is_active == True)
+            .order_by(VoiceModel.created_at.desc())
+            .limit(1)
+        )
+        voice = result.scalar_one_or_none()
+    else:
+        result = await db.execute(
+            select(VoiceModel).where(
+                VoiceModel.voice_id == voice_id,
+                VoiceModel.user_id == current_user.id,
+            )
+        )
+        voice = result.scalar_one_or_none()
+
+    if not voice:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="没有可用的音色，请先导入音色",
+        )
+
+    return VoiceModelListItem.model_validate(voice)
+
+
 @router.get("/{voice_db_id}", response_model=VoiceModelResponse)
 async def get_voice(
     voice_db_id: int,
@@ -380,56 +433,3 @@ async def test_voice(
 
     logger.info(f"用户 {current_user.email} 测试音色：{voice.voice_name}")
     return Response(content=wav_bytes, media_type="audio/wav")
-
-
-@router.get("/current/info", response_model=VoiceModelListItem)
-async def get_current_voice(
-    current_user: Annotated[User, Depends(get_current_user)],
-    db: Annotated[AsyncSession, Depends(get_db)],
-) -> VoiceModelListItem:
-    """
-    获取当前用户选择的音色信息。
-    从 Redis 读取 voice_id，再查询数据库。
-
-    Args:
-        current_user: 当前登录用户
-        db: 数据库会话
-
-    Returns:
-        VoiceModelListItem: 当前音色信息
-    """
-    # 从 Redis 获取当前音色 ID
-    redis = await get_redis()
-    voice_id = None
-    if redis:
-        try:
-            key = f"user:{current_user.id}:current_voice"
-            voice_id = await redis.get(key)
-        except Exception as e:
-            logger.warning(f"Redis 读取当前音色失败：{e}")
-
-    if not voice_id:
-        # 没有选择，返回第一个可用音色
-        result = await db.execute(
-            select(VoiceModel)
-            .where(VoiceModel.user_id == current_user.id, VoiceModel.is_active == True)
-            .order_by(VoiceModel.created_at.desc())
-            .limit(1)
-        )
-        voice = result.scalar_one_or_none()
-    else:
-        result = await db.execute(
-            select(VoiceModel).where(
-                VoiceModel.voice_id == voice_id,
-                VoiceModel.user_id == current_user.id,
-            )
-        )
-        voice = result.scalar_one_or_none()
-
-    if not voice:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="没有可用的音色，请先导入音色",
-        )
-
-    return VoiceModelListItem.model_validate(voice)

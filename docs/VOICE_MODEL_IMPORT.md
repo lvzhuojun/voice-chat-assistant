@@ -90,14 +90,10 @@ cp ../voice-cloning-service/storage/models/{voice_id}/metadata.json \
 cp ../voice-cloning-service/storage/models/{voice_id}/reference.wav \
    storage/voice_models/{user_id}/{voice_id}/
 
-# 3. 通过 API 注册到数据库
-curl -X POST http://localhost:8000/api/voices/register \
+# 3. 通过 API 注册到数据库（上传 ZIP 包）
+curl -X POST http://localhost:8000/api/voices/import \
   -H "Authorization: Bearer {jwt_token}" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "voice_id": "{voice_id}",
-    "user_id": "{user_id}"
-  }'
+  -F "file=@{voice_id}.zip"
 ```
 
 ## 推理加载方式（后端实现参考）

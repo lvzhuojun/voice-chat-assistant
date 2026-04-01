@@ -13,5 +13,9 @@ for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":5173 "') do (
     taskkill /F /PID %%a >nul 2>&1
 )
 
-echo [SUCCESS] 服务已停止
+REM 停止 Docker 容器（postgres + redis）
+echo [INFO] 停止 Docker 容器 (postgres + redis)...
+docker compose -f docker/docker-compose.yml stop postgres redis >nul 2>&1
+
+echo [SUCCESS] 所有服务已停止
 pause

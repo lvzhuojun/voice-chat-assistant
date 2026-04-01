@@ -52,4 +52,3 @@ backend/alembic/versions/*.pyc
 
 # Docker
 docker/.env
-frontend/dist/
