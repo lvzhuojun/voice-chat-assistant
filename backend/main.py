@@ -36,12 +36,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # ── 启动阶段 ──────────────────────────────────────────────
     logger.info("Voice Chat Assistant 后端启动中...")
 
+    # 安全检查：检测弱 JWT 密钥
+    _WEAK_JWT_DEFAULTS = {"change-this-to-a-random-string", "secret", ""}
+    if settings.jwt_secret_key in _WEAK_JWT_DEFAULTS:
+        logger.warning(
+            "⚠️  JWT_SECRET_KEY 使用了默认弱密钥！"
+            "请在 .env 中设置一个强随机字符串后再部署到生产环境。"
+            "生成命令：python -c \"import secrets; print(secrets.token_hex(32))\""
+        )
+
     # 创建必要的存储目录
+    log_dir = Path(__file__).parent.parent / "logs"
     dirs_to_create = [
         settings.storage_path,
         settings.voice_models_path,
         settings.storage_path / "audio",
-        Path("logs"),
+        log_dir,
     ]
     for d in dirs_to_create:
         d.mkdir(parents=True, exist_ok=True)
@@ -99,14 +109,16 @@ app = FastAPI(
 )
 
 # ── CORS 配置 ─────────────────────────────────────────────────
-# 允许前端开发服务器访问
-CORS_ORIGINS = [
+# 默认允许本地开发端口；生产部署时通过 CORS_ORIGINS 环境变量追加真实域名
+_default_origins = [
     f"http://localhost:{settings.frontend_port}",
     f"http://127.0.0.1:{settings.frontend_port}",
-    "http://localhost:3000",    # 备选端口
-    "http://localhost:80",
+    "http://localhost:3000",
     "http://localhost",
 ]
+_extra_origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
+# 去重并保持顺序
+CORS_ORIGINS = list(dict.fromkeys(_default_origins + _extra_origins))
 
 app.add_middleware(
     CORSMiddleware,

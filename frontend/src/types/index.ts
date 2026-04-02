@@ -79,9 +79,10 @@ export interface Message {
 export type WsMessage =
   | { type: 'transcript'; text: string }
   | { type: 'llm_chunk'; text: string }
-  | { type: 'audio_chunk'; data: string }   // base64 编码的 WAV
+  | { type: 'audio_chunk'; data: string; seq?: number }  // base64 WAV，seq 为分句序号
   | { type: 'done'; message_id: string }
   | { type: 'error'; message: string }
+  | { type: 'title_updated'; title: string }  // 首轮后自动生成的对话标题
 
 /** WebSocket 客户端 → 服务端文字消息 */
 export interface WsTextMessage {

@@ -12,6 +12,7 @@ interface ChatState {
   streamingText: string          // LLM 流式文字（打字机效果）
   isProcessing: boolean          // 正在处理（STT/LLM/TTS）
   pendingAudioChunks: string[]   // 等待播放的 base64 音频块
+  messageAudioData: Record<number, string>  // messageId → base64 WAV（供重播）
 
   setConversations: (convs: Conversation[]) => void
   addConversation: (conv: Conversation) => void
@@ -24,6 +25,7 @@ interface ChatState {
   setProcessing: (processing: boolean) => void
   addAudioChunk: (chunk: string) => void
   clearAudioChunks: () => void
+  setMessageAudio: (messageId: number, data: string) => void
   updateConversationTitle: (id: number, title: string) => void
 }
 
@@ -34,6 +36,7 @@ export const useChatStore = create<ChatState>((set) => ({
   streamingText: '',
   isProcessing: false,
   pendingAudioChunks: [],
+  messageAudioData: {},
 
   setConversations: (conversations) => set({ conversations }),
   addConversation: (conv) =>
@@ -57,6 +60,10 @@ export const useChatStore = create<ChatState>((set) => ({
       pendingAudioChunks: [...state.pendingAudioChunks, chunk],
     })),
   clearAudioChunks: () => set({ pendingAudioChunks: [] }),
+  setMessageAudio: (messageId, data) =>
+    set((state) => ({
+      messageAudioData: { ...state.messageAudioData, [messageId]: data },
+    })),
   updateConversationTitle: (id, title) =>
     set((state) => ({
       conversations: state.conversations.map((c) =>

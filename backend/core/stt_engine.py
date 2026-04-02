@@ -5,6 +5,7 @@ RTX 5060 / CUDA 13.1 / PyTorch 2.7 cu128 兼容
 """
 
 import io
+import sys
 import tempfile
 import subprocess
 from pathlib import Path
@@ -15,6 +16,24 @@ from backend.utils.logger import get_logger
 
 logger = get_logger(__name__)
 settings = get_settings()
+
+
+def _find_ffmpeg() -> str:
+    """
+    查找 ffmpeg 可执行文件路径。
+    优先检查当前 Python 解释器所在 conda 环境的 Library/bin/，
+    再尝试系统 PATH。
+    """
+    import shutil
+    # conda 环境里 ffmpeg 通常在 {env}/Library/bin/ffmpeg.exe（Windows）
+    conda_ffmpeg = Path(sys.executable).parent.parent / "Library" / "bin" / "ffmpeg.exe"
+    if conda_ffmpeg.exists():
+        return str(conda_ffmpeg)
+    # 回退到 PATH
+    found = shutil.which("ffmpeg")
+    if found:
+        return found
+    return "ffmpeg"  # 让 FileNotFoundError 自然抛出
 
 # 全局 WhisperModel 实例（单例，避免重复加载）
 _whisper_model = None
@@ -76,6 +95,8 @@ def convert_audio_to_wav(audio_bytes: bytes, input_format: str = "webm") -> Opti
     Returns:
         bytes: WAV 格式音频字节流，失败返回 None
     """
+    inp_path: Path | None = None
+    out_path: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(suffix=f".{input_format}", delete=False) as inp:
             inp_path = Path(inp.name)
@@ -88,8 +109,9 @@ def convert_audio_to_wav(audio_bytes: bytes, input_format: str = "webm") -> Opti
         # -ar 16000：采样率 16kHz（Whisper 最优）
         # -ac 1：单声道
         # -f wav：输出 WAV 格式
+        ffmpeg_bin = _find_ffmpeg()
         cmd = [
-            "ffmpeg",
+            ffmpeg_bin,
             "-y",                    # 覆盖输出文件
             "-i", str(inp_path),     # 输入文件
             "-ar", "16000",          # 采样率 16kHz
@@ -125,9 +147,9 @@ def convert_audio_to_wav(audio_bytes: bytes, input_format: str = "webm") -> Opti
     finally:
         # 清理临时文件
         try:
-            if inp_path.exists():
+            if inp_path is not None and inp_path.exists():
                 inp_path.unlink()
-            if out_path.exists():
+            if out_path is not None and out_path.exists():
                 out_path.unlink()
         except Exception:
             pass

@@ -58,12 +58,16 @@ sequenceDiagram
 ## Features
 
 - **Voice-cloned TTS** — uses GPT-SoVITS v2 models trained in Project 1; LRU cache holds up to 3 models in VRAM
+- **Sentence-level streaming TTS** — LLM output split at punctuation boundaries; each sentence is synthesized and played immediately, reducing first-audio latency
+- **Ordered audio queue** — browser plays TTS chunks in sequence (no overlap) using a Promise-based drain loop keyed by `seq` index
+- **Real-time waveform** — live 5-bar mountain-shaped waveform on the record button, driven by `AnalyserNode` at 60 fps
 - **Real-time STT** — faster-whisper `medium` on CUDA, streams transcript back over WebSocket
 - **Streaming LLM** — any OpenAI-compatible endpoint; mock mode when no key is set
 - **Full-duplex WebSocket** — audio frames in, transcript + LLM chunks + audio chunks out
+- **Auto conversation title** — LLM generates a concise title after the first exchange; updates sidebar instantly via `title_updated` WebSocket event
 - **Voice management** — import voices as ZIP, switch active voice per conversation
 - **Conversation history** — messages and audio URLs persisted in PostgreSQL
-- **JWT authentication** — register / login; all resources are user-scoped
+- **JWT authentication** — register / login; password complexity enforced; all resources are user-scoped
 
 ---
 
@@ -150,6 +154,8 @@ Key variables:
 | `LLM_API_KEY` | OpenAI-compatible key | No (mock if empty) |
 | `LLM_BASE_URL` | LLM endpoint | No |
 | `WHISPER_MODEL_SIZE` | `tiny` / `medium` / `large` | No (default: `medium`) |
+| `CORS_ORIGINS` | Extra allowed origins (comma-separated) | No |
+| `MAX_UPLOAD_SIZE_MB` | Voice ZIP upload size limit | No (default: `500`) |
 
 ### 6. Start all services
 

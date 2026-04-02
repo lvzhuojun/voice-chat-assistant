@@ -99,6 +99,62 @@ async def save_conversation_context(
         logger.warning(f"保存对话上下文失败（conv={conversation_id}）：{e}")
 
 
+async def generate_title(user_message: str, assistant_reply: str) -> Optional[str]:
+    """
+    根据对话第一轮内容自动生成简洁标题（8~15字）。
+    LLM 未配置时降级为截取用户消息前20字。
+
+    Args:
+        user_message: 用户第一条消息
+        assistant_reply: AI 第一条回复
+
+    Returns:
+        str: 生成的标题，失败返回 None
+    """
+    if not settings.llm_enabled:
+        # 无 LLM 时用用户消息首段作为标题
+        title = user_message.strip()[:20]
+        return (title + "…") if len(user_message.strip()) > 20 else title or None
+
+    try:
+        from openai import AsyncOpenAI
+
+        client = AsyncOpenAI(
+            api_key=settings.llm_api_key,
+            base_url=settings.llm_base_url,
+        )
+        response = await client.chat.completions.create(
+            model=settings.llm_model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "根据用户和AI的第一轮对话，生成一个简洁的对话标题（8~15字）。"
+                        "要求：不含引号、不含标点、直接返回标题文字。"
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        f"用户：{user_message[:150]}\n"
+                        f"AI：{assistant_reply[:150]}"
+                    ),
+                },
+            ],
+            max_tokens=40,
+            temperature=0.3,
+            stream=False,
+        )
+        raw = response.choices[0].message.content or ""
+        # 去除可能包裹的引号或书名号
+        title = raw.strip().strip('"\'「」《》""').strip()
+        return title[:50] if title else None
+
+    except Exception as e:
+        logger.warning(f"标题生成失败：{e}")
+        return None
+
+
 async def clear_conversation_context(conversation_id: int) -> None:
     """
     清除指定对话的上下文缓存。

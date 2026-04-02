@@ -36,26 +36,64 @@ export function useWebSocket({ conversationId }: UseWebSocketProps): UseWebSocke
     setProcessing,
     addAudioChunk,
     clearAudioChunks,
-    messages,
-    streamingText,
+    setMessageAudio,
+    updateConversationTitle,
   } = useChatStore()
 
-  // 播放 base64 WAV 音频
-  const playAudioChunk = useCallback(async (base64Data: string) => {
-    try {
-      const binary = atob(base64Data)
-      const bytes = new Uint8Array(binary.length)
-      for (let i = 0; i < binary.length; i++) {
-        bytes[i] = binary.charCodeAt(i)
+  // 用 ref 追踪最新 streamingText，避免 handleMessage 产生 stale closure
+  const streamingTextRef = useRef('')
+  const streamingText = useChatStore((s) => s.streamingText)
+  streamingTextRef.current = streamingText
+
+  // 追踪本轮最后一个 TTS 音频（用于 done 时存入 messageAudioData 供重播）
+  const currentAudioRef = useRef<string>('')
+  // 顺序音频播放队列（分句 TTS 场景：按 seq 顺序入队，依次播放）
+  const audioQueueRef = useRef<string[]>([])
+  const isPlayingAudioRef = useRef(false)
+
+  /** 播放单段 base64 WAV，返回 Promise（音频结束后 resolve） */
+  const playAudioData = useCallback((base64Data: string): Promise<void> => {
+    return new Promise((resolve) => {
+      try {
+        const binary = atob(base64Data)
+        const bytes = new Uint8Array(binary.length)
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i)
+        }
+        const blob = new Blob([bytes], { type: 'audio/wav' })
+        const url = URL.createObjectURL(blob)
+        const audio = new Audio(url)
+        audio.onended = () => { URL.revokeObjectURL(url); resolve() }
+        audio.onerror = () => { URL.revokeObjectURL(url); resolve() }
+        audio.play().catch(() => resolve())
+      } catch (err) {
+        console.error('音频播放失败:', err)
+        resolve()
       }
-      const blob = new Blob([bytes], { type: 'audio/wav' })
-      const url = URL.createObjectURL(blob)
-      const audio = new Audio(url)
-      audio.onended = () => URL.revokeObjectURL(url)
-      await audio.play()
-    } catch (err) {
-      console.error('音频播放失败:', err)
+    })
+  }, [])
+
+  /** 逐段消费音频队列，保证顺序不重叠 */
+  const drainAudioQueue = useCallback(async () => {
+    if (isPlayingAudioRef.current) return
+    isPlayingAudioRef.current = true
+    while (audioQueueRef.current.length > 0) {
+      const data = audioQueueRef.current.shift()!
+      await playAudioData(data)
     }
+    isPlayingAudioRef.current = false
+  }, [playAudioData])
+
+  /** 将音频加入队列并触发播放 */
+  const enqueueAudio = useCallback((base64Data: string) => {
+    audioQueueRef.current.push(base64Data)
+    drainAudioQueue()
+  }, [drainAudioQueue])
+
+  /** 清空音频队列（切换对话/出错时调用） */
+  const clearAudioQueue = useCallback(() => {
+    audioQueueRef.current = []
+    isPlayingAudioRef.current = false
   }, [])
 
   // 处理服务端消息
@@ -79,25 +117,40 @@ export function useWebSocket({ conversationId }: UseWebSocketProps): UseWebSocke
           break
 
         case 'audio_chunk':
-          // TTS 音频块：播放
+          // 分句 TTS 音频：入队顺序播放（保证多句不重叠、不乱序）
           addAudioChunk(msg.data)
-          playAudioChunk(msg.data)
+          currentAudioRef.current = msg.data  // 保存最后一句用于重播
+          enqueueAudio(msg.data)
           break
 
-        case 'done':
+        case 'done': {
           // 本轮完成：将 streamingText 转为正式消息
-          if (streamingText) {
+          const messageId = parseInt(msg.message_id)
+          if (streamingTextRef.current) {
             addMessage({
-              id: parseInt(msg.message_id),
+              id: messageId,
               conversation_id: conversationId!,
               role: 'assistant',
-              content: streamingText,
+              content: streamingTextRef.current,
               created_at: new Date().toISOString(),
             })
+          }
+          // 将最后一段音频与消息绑定（供重播，完整重播需服务端持久化）
+          if (currentAudioRef.current) {
+            setMessageAudio(messageId, currentAudioRef.current)
+            currentAudioRef.current = ''
           }
           clearStreamingText()
           clearAudioChunks()
           setProcessing(false)
+          break
+        }
+
+        case 'title_updated':
+          // 首轮完成后服务端自动生成的标题
+          if (conversationId) {
+            updateConversationTitle(conversationId, msg.title)
+          }
           break
 
         case 'error':
@@ -115,8 +168,10 @@ export function useWebSocket({ conversationId }: UseWebSocketProps): UseWebSocke
       clearStreamingText,
       clearAudioChunks,
       setProcessing,
-      playAudioChunk,
-      streamingText,
+      setMessageAudio,
+      updateConversationTitle,
+      enqueueAudio,
+      // streamingText 不放这里，改用 streamingTextRef 避免 stale closure
     ]
   )
 
@@ -164,9 +219,12 @@ export function useWebSocket({ conversationId }: UseWebSocketProps): UseWebSocke
     }
   }, [conversationId, token, handleMessage])
 
-  // 对话切换时重新连接
+  // 对话切换时重新连接，并清空旧音频队列
   useEffect(() => {
-    // 关闭旧连接
+    // 清空音频队列，避免上一个对话的音频在新对话中继续播放
+    clearAudioQueue()
+    currentAudioRef.current = ''
+
     if (wsRef.current) {
       wsRef.current.close(1000)
       wsRef.current = null
@@ -183,6 +241,7 @@ export function useWebSocket({ conversationId }: UseWebSocketProps): UseWebSocke
     return () => {
       wsRef.current?.close(1000)
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current)
+      clearAudioQueue()
     }
   }, [conversationId])  // eslint-disable-line react-hooks/exhaustive-deps
 

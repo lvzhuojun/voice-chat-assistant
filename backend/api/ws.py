@@ -10,7 +10,7 @@ from typing import Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from backend.database import AsyncSessionLocal
 from backend.models.conversation import Conversation
@@ -18,6 +18,7 @@ from backend.models.message import Message
 from backend.models.voice_model import VoiceModel
 from backend.core.security import get_token_from_query
 from backend.core.pipeline import process_audio_message, process_text_message
+from backend.core.llm_client import generate_title
 from backend.config import get_settings
 from backend.utils.logger import get_logger
 
@@ -28,6 +29,40 @@ router = APIRouter(tags=["WebSocket"])
 
 # Redis 客户端（懒加载）
 _redis = None
+
+
+async def _try_generate_title(
+    conversation: Conversation,
+    conversation_id: int,
+    user_text: str,
+    reply_text: str,
+    db: "AsyncSession",
+    send_json: "Callable",
+) -> None:
+    """
+    首轮对话完成后尝试自动生成标题。
+    仅在对话标题为默认值且消息数恰好为 2（1用户+1AI）时触发。
+    """
+    try:
+        # 只在首轮（2条消息）且标题未修改时生成
+        if conversation.title not in ("新对话", ""):
+            return
+        count_result = await db.execute(
+            select(func.count(Message.id)).where(
+                Message.conversation_id == conversation_id
+            )
+        )
+        if (count_result.scalar() or 0) != 2:
+            return
+
+        new_title = await generate_title(user_text, reply_text)
+        if new_title:
+            conversation.title = new_title[:255]
+            await db.commit()
+            await send_json({"type": "title_updated", "title": new_title})
+            logger.info(f"对话 {conversation_id} 标题自动生成：{new_title}")
+    except Exception as e:
+        logger.warning(f"自动生成标题失败（conv={conversation_id}）：{e}")
 
 
 async def _get_redis():
@@ -202,7 +237,7 @@ async def websocket_chat(
 
                     logger.debug(f"收到音频帧：{len(audio_bytes)} bytes")
 
-                    reply_text = await process_audio_message(
+                    transcript, reply_text = await process_audio_message(
                         audio_bytes=audio_bytes,
                         audio_format="webm",  # 浏览器 MediaRecorder 默认输出 WebM
                         conversation_id=conversation_id,
@@ -212,9 +247,17 @@ async def websocket_chat(
                         send_message=send_json,
                     )
 
-                    if reply_text:
-                        # 存储消息到数据库
-                        # 注意：user_content 需要从 transcript 获取，这里简化处理
+                    if transcript and reply_text:
+                        # 存储用户语音识别消息
+                        user_msg = Message(
+                            conversation_id=conversation_id,
+                            role="user",
+                            content=transcript,
+                        )
+                        db.add(user_msg)
+                        await db.commit()
+
+                        # 存储 AI 回复消息
                         assistant_msg = Message(
                             conversation_id=conversation_id,
                             role="assistant",
@@ -232,6 +275,12 @@ async def websocket_chat(
                             "type": "done",
                             "message_id": str(assistant_msg.id),
                         })
+
+                        # 首轮后自动生成标题
+                        await _try_generate_title(
+                            conversation, conversation_id,
+                            transcript, reply_text, db, send_json,
+                        )
 
                 # ── 处理文字消息 ──────────────────────────────
                 elif is_text:
@@ -286,6 +335,12 @@ async def websocket_chat(
                                 "type": "done",
                                 "message_id": str(assistant_msg.id),
                             })
+
+                            # 首轮后自动生成标题
+                            await _try_generate_title(
+                                conversation, conversation_id,
+                                content, reply_text, db, send_json,
+                            )
                     else:
                         logger.debug(f"收到未知消息类型：{msg_type}")
 

@@ -51,6 +51,13 @@ class Settings(BaseSettings):
     pretrained_models_dir: str = "./storage/pretrained_models/GPT-SoVITS"
     storage_dir: str = "./storage"
 
+    # ── 安全与限制 ────────────────────────────────────────────
+    # 额外允许的 CORS 来源（逗号分隔，生产部署时配置真实域名）
+    # 示例：CORS_ORIGINS=https://yourdomain.com,https://app.yourdomain.com
+    cors_origins: str = ""
+    # 音色 ZIP 包最大上传大小（MB）
+    max_upload_size_mb: int = 500
+
     @property
     def voice_models_path(self) -> Path:
         """返回音色模型目录的 Path 对象。"""

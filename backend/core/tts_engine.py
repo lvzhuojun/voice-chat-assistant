@@ -56,6 +56,21 @@ def _ensure_gptsovits_in_path() -> bool:
         sys.path.insert(0, infer_root_str)
         logger.debug(f"已将 GPT_SoVITS 子目录加入 sys.path：{infer_root_str}")
 
+    # 还需要将父目录（GPT-SoVITS/）加入 sys.path，
+    # 使 f5_tts 内部的 "from GPT_SoVITS.xxx import yyy" 可用（命名空间包）
+    gptsovits_parent_str = str(gptsovits_dir)
+    if gptsovits_parent_str not in sys.path:
+        sys.path.insert(0, gptsovits_parent_str)
+        logger.debug(f"已将 GPT-SoVITS 父目录加入 sys.path：{gptsovits_parent_str}")
+
+    # sv.py 里 "from ERes2NetV2 import ERes2NetV2" 需要 eres2net/ 在 sys.path
+    eres2net_dir = infer_root / "eres2net"
+    if eres2net_dir.exists():
+        eres2net_str = str(eres2net_dir)
+        if eres2net_str not in sys.path:
+            sys.path.insert(0, eres2net_str)
+            logger.debug(f"已将 eres2net 子目录加入 sys.path：{eres2net_str}")
+
     return True
 
 

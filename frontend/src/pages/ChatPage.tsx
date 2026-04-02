@@ -40,6 +40,7 @@ export default function ChatPage() {
     messages,
     streamingText,
     isProcessing,
+    messageAudioData,
     setConversations,
     addConversation,
     removeConversation,
@@ -51,7 +52,6 @@ export default function ChatPage() {
   const [textInput, setTextInput] = useState('')
   const [inputMode, setInputMode] = useState<'voice' | 'text'>('voice')
   const [isLoadingMessages, setIsLoadingMessages] = useState(false)
-  const [audioDataMap, setAudioDataMap] = useState<Record<number, string>>({})  // messageId -> base64
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -60,7 +60,7 @@ export default function ChatPage() {
     conversationId: activeConversationId,
   })
 
-  const { recordingState, startRecording, stopRecording } = useAudioRecorder()
+  const { recordingState, audioLevel, startRecording, stopRecording } = useAudioRecorder()
 
   // 初始化：加载对话列表 + 当前音色
   useEffect(() => {
@@ -97,7 +97,7 @@ export default function ChatPage() {
       .then((res) => setMessages(res.data))
       .catch(() => {})
       .finally(() => setIsLoadingMessages(false))
-  }, [activeConversationId, setMessages])
+  }, [activeConversationId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // 消息列表更新时自动滚到底部
   useEffect(() => {
@@ -316,7 +316,7 @@ export default function ChatPage() {
                 <MessageBubble
                   key={msg.id}
                   message={msg}
-                  audioData={msg.role === 'assistant' ? audioDataMap[msg.id] : undefined}
+                  audioData={msg.role === 'assistant' ? messageAudioData[msg.id] : undefined}
                 />
               ))}
               {streamingText && <StreamingBubble text={streamingText} />}
@@ -342,6 +342,7 @@ export default function ChatPage() {
 
               <RecordButton
                 state={recordingState}
+                audioLevel={audioLevel}
                 onMouseDown={handleRecordStart}
                 onMouseUp={handleRecordStop}
                 onTouchStart={handleRecordStart}

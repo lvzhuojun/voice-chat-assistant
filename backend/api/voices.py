@@ -20,7 +20,7 @@ from backend.schemas.schemas import (
     VoiceModelResponse,
     VoiceModelListItem,
     VoiceSelectResponse,
-    MessageResponse_Simple,
+    SimpleMessageResponse,
 )
 from backend.core.security import get_current_user
 from backend.config import get_settings
@@ -95,10 +95,18 @@ async def import_voice(
             detail="只支持 ZIP 格式文件",
         )
 
+    # 限制上传大小，防止超大文件耗尽内存
+    max_bytes = settings.max_upload_size_mb * 1024 * 1024
+    content = await file.read(max_bytes + 1)
+    if len(content) > max_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"文件过大，最大支持 {settings.max_upload_size_mb}MB",
+        )
+
     # 将上传的文件写入临时文件
     with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as tmp:
         tmp_path = Path(tmp.name)
-        content = await file.read()
         tmp.write(content)
 
     try:
@@ -273,12 +281,12 @@ async def get_voice(
     return VoiceModelResponse.model_validate(voice)
 
 
-@router.delete("/{voice_db_id}", response_model=MessageResponse_Simple)
+@router.delete("/{voice_db_id}", response_model=SimpleMessageResponse)
 async def delete_voice(
     voice_db_id: int,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
-) -> MessageResponse_Simple:
+) -> SimpleMessageResponse:
     """
     删除音色（删除文件 + 数据库记录）。
 
@@ -288,7 +296,7 @@ async def delete_voice(
         db: 数据库会话
 
     Returns:
-        MessageResponse_Simple: 操作结果
+        SimpleMessageResponse: 操作结果
     """
     result = await db.execute(
         select(VoiceModel).where(
@@ -327,7 +335,7 @@ async def delete_voice(
     await db.commit()
 
     logger.info(f"用户 {current_user.email} 删除音色：{voice.voice_name} ({voice.voice_id})")
-    return MessageResponse_Simple(message="音色已删除")
+    return SimpleMessageResponse(message="音色已删除")
 
 
 @router.post("/{voice_db_id}/select", response_model=VoiceSelectResponse)

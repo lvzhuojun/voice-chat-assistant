@@ -111,15 +111,28 @@ User holds record button
         ▼
 [Browser]  typewriter effect
 
-[TTS]      GPT-SoVITS synthesis
+[LLM stream] sentence boundary detected → TTS triggered per sentence
         │
-        │  {"type": "audio_chunk", "data": "<base64>"}  × N
+        │  (sentence 1 ready)
         ▼
-[Browser]  plays audio chunks
+[TTS]      GPT-SoVITS synthesis — sentence 1
+        │
+        │  {"type": "audio_chunk", "data": "<base64>", "seq": 0}
+        ▼
+[Browser]  audio queue — plays sentence 1 immediately
+
+[TTS]      GPT-SoVITS synthesis — sentence 2, 3, ...
+        │
+        │  {"type": "audio_chunk", "data": "<base64>", "seq": N}
+        ▼
+[Browser]  audio queue — plays in order, no overlap
 
         │
         ▼
 {"type": "done", "message_id": "..."}
+        │
+        ▼ (first turn only, title was "新对话")
+{"type": "title_updated", "title": "..."}
 ```
 
 ### WebSocket Message Types
@@ -130,8 +143,9 @@ User holds record button
 | Client → Server | text | `{"type":"text","content":"..."}` | Text input |
 | Server → Client | `transcript` | `{"type":"transcript","text":"..."}` | STT result |
 | Server → Client | `llm_chunk` | `{"type":"llm_chunk","text":"..."}` | LLM streaming token |
-| Server → Client | `audio_chunk` | `{"type":"audio_chunk","data":"<b64>"}` | TTS audio chunk |
+| Server → Client | `audio_chunk` | `{"type":"audio_chunk","data":"<b64>","seq":0}` | TTS audio chunk (sentence index) |
 | Server → Client | `done` | `{"type":"done","message_id":"..."}` | Turn complete |
+| Server → Client | `title_updated` | `{"type":"title_updated","title":"..."}` | Auto-generated title (first turn only) |
 | Server → Client | `error` | `{"type":"error","message":"..."}` | Error |
 
 ---

@@ -58,12 +58,16 @@ sequenceDiagram
 ## 功能特性
 
 - **克隆音色 TTS** — 使用项目一训练的 GPT-SoVITS v2 模型；LRU 缓存最多在 VRAM 中保留 3 个模型
+- **句级流式 TTS** — LLM 输出按标点边界切句，每句立即合成并推送，大幅降低首帧音频延迟
+- **有序音频队列** — 浏览器通过 Promise 串行播放 TTS 分块（按 `seq` 序号），无重叠、无错序
+- **实时波形动画** — 录音按钮显示 5 根山形波形柱，由 `AnalyserNode` 以 60 fps 驱动
 - **实时 STT** — faster-whisper `medium`，CUDA 加速，转写结果通过 WebSocket 实时返回
 - **流式 LLM** — 支持任意 OpenAI 兼容接口；未配置 Key 时自动进入 mock 模式
 - **全双工 WebSocket** — 音频帧输入，转写文字 + LLM 分块 + 音频块同步输出
+- **对话标题自动生成** — 首轮对话结束后 LLM 自动生成简洁标题，通过 `title_updated` WebSocket 事件实时更新侧边栏
 - **音色管理** — ZIP 包导入音色，每个对话可独立切换当前音色
 - **对话历史** — 消息和音频 URL 持久化到 PostgreSQL
-- **JWT 认证** — 注册 / 登录，所有资源均按用户隔离
+- **JWT 认证** — 注册 / 登录，密码强度校验，所有资源均按用户隔离
 
 ---
 
@@ -150,6 +154,8 @@ cp .env.example .env
 | `LLM_API_KEY` | OpenAI 兼容 API Key | 否（为空则 mock） |
 | `LLM_BASE_URL` | LLM 接口地址 | 否 |
 | `WHISPER_MODEL_SIZE` | `tiny` / `medium` / `large` | 否（默认 `medium`） |
+| `CORS_ORIGINS` | 额外允许的跨域来源（逗号分隔） | 否 |
+| `MAX_UPLOAD_SIZE_MB` | 音色 ZIP 上传大小限制 | 否（默认 `500`） |
 
 ### 6. 启动所有服务
 

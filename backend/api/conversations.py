@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, delete
+from sqlalchemy import select, func, delete, literal_column
 
 from backend.database import get_db
 from backend.models.user import User
@@ -19,7 +19,7 @@ from backend.schemas.schemas import (
     ConversationResponse,
     ConversationWithCount,
     MessageResponse,
-    MessageResponse_Simple,
+    SimpleMessageResponse,
 )
 from backend.core.security import get_current_user
 from backend.core.llm_client import clear_conversation_context
@@ -46,23 +46,25 @@ async def list_conversations(
     Returns:
         list[ConversationWithCount]: 对话列表（含消息数）
     """
-    # 查询对话列表 + 各对话消息数量（子查询）
-    result = await db.execute(
-        select(Conversation)
+    # 单次查询：LEFT JOIN 消息数子查询，避免 N+1 问题
+    msg_count_subq = (
+        select(
+            Message.conversation_id,
+            func.count(Message.id).label("cnt"),
+        )
+        .group_by(Message.conversation_id)
+        .subquery()
+    )
+
+    rows = await db.execute(
+        select(Conversation, func.coalesce(msg_count_subq.c.cnt, 0).label("message_count"))
+        .outerjoin(msg_count_subq, Conversation.id == msg_count_subq.c.conversation_id)
         .where(Conversation.user_id == current_user.id)
         .order_by(Conversation.updated_at.desc())
     )
-    conversations = result.scalars().all()
 
-    # 为每个对话查询消息数
-    response_list = []
-    for conv in conversations:
-        count_result = await db.execute(
-            select(func.count(Message.id)).where(Message.conversation_id == conv.id)
-        )
-        message_count = count_result.scalar() or 0
-
-        item = ConversationWithCount(
+    response_list = [
+        ConversationWithCount(
             id=conv.id,
             title=conv.title,
             voice_model_id=conv.voice_model_id,
@@ -70,7 +72,8 @@ async def list_conversations(
             updated_at=conv.updated_at,
             message_count=message_count,
         )
-        response_list.append(item)
+        for conv, message_count in rows
+    ]
 
     return response_list
 
@@ -148,12 +151,12 @@ async def get_conversation_messages(
     return [MessageResponse.model_validate(m) for m in messages]
 
 
-@router.delete("/{conversation_id}", response_model=MessageResponse_Simple)
+@router.delete("/{conversation_id}", response_model=SimpleMessageResponse)
 async def delete_conversation(
     conversation_id: int,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
-) -> MessageResponse_Simple:
+) -> SimpleMessageResponse:
     """
     删除对话及其所有消息。
     同时清除 Redis 中的 LLM 上下文缓存。
@@ -164,7 +167,7 @@ async def delete_conversation(
         db: 数据库会话
 
     Returns:
-        MessageResponse_Simple: 操作结果
+        SimpleMessageResponse: 操作结果
     """
     # 验证对话归属
     conv_result = await db.execute(
@@ -188,7 +191,7 @@ async def delete_conversation(
     await db.commit()
 
     logger.info(f"用户 {current_user.email} 删除对话 id={conversation_id}")
-    return MessageResponse_Simple(message="对话已删除")
+    return SimpleMessageResponse(message="对话已删除")
 
 
 @router.patch("/{conversation_id}/title", response_model=ConversationResponse)

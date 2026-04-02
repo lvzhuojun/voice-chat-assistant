@@ -10,14 +10,19 @@ import type { RecordingState } from '@/types'
 
 interface RecordButtonProps {
   state: RecordingState
+  audioLevel?: number     // 0~1，录音时实时音量（用于波形动画）
   onMouseDown: () => void
   onMouseUp: () => void
   onTouchStart: () => void
   onTouchEnd: () => void
 }
 
+// 波形条的相对高度因子（中间高、两边低，形成山形轮廓）
+const BAR_FACTORS = [0.45, 0.7, 1.0, 0.7, 0.45]
+
 export default function RecordButton({
   state,
+  audioLevel = 0,
   onMouseDown,
   onMouseUp,
   onTouchStart,
@@ -71,12 +76,24 @@ export default function RecordButton({
         {isProcessing ? (
           <Loader2 className="w-7 h-7 text-white/60 animate-spin" />
         ) : isRecording ? (
-          <motion.div
-            animate={{ scale: [1, 1.1, 1] }}
-            transition={{ duration: 0.6, repeat: Infinity }}
-          >
-            <MicOff className="w-7 h-7 text-white" />
-          </motion.div>
+          /* 实时波形：5 根柱子随音量动态变高，最低 20% 最高 100% */
+          <div className="flex items-end gap-[3px] h-7 pb-0.5">
+            {BAR_FACTORS.map((factor, i) => {
+              const heightPct = Math.round(
+                Math.max(20, Math.min(100, audioLevel * 100 * factor * 1.8))
+              )
+              return (
+                <div
+                  key={i}
+                  className="w-[3px] rounded-full bg-white transition-all"
+                  style={{
+                    height: `${heightPct}%`,
+                    transitionDuration: '60ms',
+                  }}
+                />
+              )
+            })}
+          </div>
         ) : (
           <Mic className="w-7 h-7 text-white" />
         )}

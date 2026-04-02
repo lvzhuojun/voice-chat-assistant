@@ -8,6 +8,7 @@ import type { RecordingState } from '@/types'
 
 interface UseAudioRecorderReturn {
   recordingState: RecordingState
+  audioLevel: number       // 0~1，录音时的实时音量（用于波形动画）
   startRecording: () => Promise<void>
   stopRecording: () => Promise<Blob | null>
   error: string | null
@@ -16,10 +17,14 @@ interface UseAudioRecorderReturn {
 export function useAudioRecorder(): UseAudioRecorderReturn {
   const [recordingState, setRecordingState] = useState<RecordingState>('idle')
   const [error, setError] = useState<string | null>(null)
+  const [audioLevel, setAudioLevel] = useState(0)
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const streamRef = useRef<MediaStream | null>(null)
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const analyserRef = useRef<AnalyserNode | null>(null)
+  const animFrameRef = useRef<number | null>(null)
 
   /** 开始录音 */
   const startRecording = useCallback(async () => {
@@ -35,6 +40,24 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
       })
       streamRef.current = stream
       chunksRef.current = []
+
+      // 建立音频分析器：实时采集音量用于波形动画
+      const audioCtx = new AudioContext()
+      const source = audioCtx.createMediaStreamSource(stream)
+      const analyser = audioCtx.createAnalyser()
+      analyser.fftSize = 128
+      source.connect(analyser)
+      audioContextRef.current = audioCtx
+      analyserRef.current = analyser
+
+      const freqData = new Uint8Array(analyser.frequencyBinCount)
+      const updateLevel = () => {
+        analyser.getByteFrequencyData(freqData)
+        const avg = freqData.reduce((a, b) => a + b, 0) / freqData.length
+        setAudioLevel(avg / 255)
+        animFrameRef.current = requestAnimationFrame(updateLevel)
+      }
+      updateLevel()
 
       // 创建 MediaRecorder（WebM 格式，浏览器默认支持）
       const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
@@ -82,6 +105,17 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
         const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
         chunksRef.current = []
 
+        // 停止音量动画
+        if (animFrameRef.current) {
+          cancelAnimationFrame(animFrameRef.current)
+          animFrameRef.current = null
+        }
+        // 释放 AudioContext
+        audioContextRef.current?.close()
+        audioContextRef.current = null
+        analyserRef.current = null
+        setAudioLevel(0)
+
         // 释放麦克风资源
         streamRef.current?.getTracks().forEach((t) => t.stop())
         streamRef.current = null
@@ -94,5 +128,5 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
     })
   }, [])
 
-  return { recordingState, startRecording, stopRecording, error }
+  return { recordingState, audioLevel, startRecording, stopRecording, error }
 }
