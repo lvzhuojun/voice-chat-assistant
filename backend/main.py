@@ -10,6 +10,8 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 import os
 from pathlib import Path
 
@@ -107,6 +109,11 @@ app = FastAPI(
     redoc_url="/redoc",
     lifespan=lifespan,
 )
+
+# ── 限流配置 ──────────────────────────────────────────────────
+from backend.core.limiter import limiter
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ── CORS 配置 ─────────────────────────────────────────────────
 # 默认允许本地开发端口；生产部署时通过 CORS_ORIGINS 环境变量追加真实域名

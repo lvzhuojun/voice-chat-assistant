@@ -47,3 +47,5 @@ dependencies:
     - aiofiles>=23.2
     - loguru>=0.7
     - tenacity>=8.3
+    # ── 限流 ──
+    - slowapi>=0.1.9

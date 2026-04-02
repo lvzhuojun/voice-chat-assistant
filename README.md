@@ -156,6 +156,8 @@ Key variables:
 | `WHISPER_MODEL_SIZE` | `tiny` / `medium` / `large` | No (default: `medium`) |
 | `CORS_ORIGINS` | Extra allowed origins (comma-separated) | No |
 | `MAX_UPLOAD_SIZE_MB` | Voice ZIP upload size limit | No (default: `500`) |
+| `POSTGRES_PASSWORD` | PostgreSQL password (Docker Compose) | No (dev default) |
+| `REDIS_PASSWORD` | Redis auth password (production) | No |
 
 ### 6. Start all services
 

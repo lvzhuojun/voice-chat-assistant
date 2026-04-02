@@ -156,6 +156,8 @@ cp .env.example .env
 | `WHISPER_MODEL_SIZE` | `tiny` / `medium` / `large` | 否（默认 `medium`） |
 | `CORS_ORIGINS` | 额外允许的跨域来源（逗号分隔） | 否 |
 | `MAX_UPLOAD_SIZE_MB` | 音色 ZIP 上传大小限制 | 否（默认 `500`） |
+| `POSTGRES_PASSWORD` | PostgreSQL 密码（Docker Compose） | 否（开发默认值） |
+| `REDIS_PASSWORD` | Redis 认证密码（生产环境） | 否 |
 
 ### 6. 启动所有服务
 

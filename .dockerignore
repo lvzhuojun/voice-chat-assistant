@@ -1,0 +1,34 @@
+# 敏感文件
+.env
+*.key
+*.pem
+
+# 大型目录（通过 volume 挂载，不打包进镜像）
+GPT_SoVITS/
+storage/
+
+# 前端构建产物和依赖（由 Dockerfile 内部安装）
+frontend/node_modules/
+frontend/dist/
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# 日志
+logs/
+*.log
+
+# 开发工具
+.git/
+.gitignore
+.vscode/
+.idea/
+*.md
+docs/
+
+# Windows 临时文件
+Thumbs.db
+Desktop.ini

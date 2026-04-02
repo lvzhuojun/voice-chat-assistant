@@ -6,9 +6,11 @@
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+
+from backend.core.limiter import limiter
 
 from backend.database import get_db
 from backend.models.user import User
@@ -32,8 +34,10 @@ router = APIRouter(prefix="/api/auth", tags=["认证"])
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("5/hour")
 async def register(
-    request: UserRegisterRequest,
+    request: Request,
+    body: UserRegisterRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> TokenResponse:
     """
@@ -51,7 +55,7 @@ async def register(
         TokenResponse: JWT Token + 用户信息
     """
     # 检查邮箱是否已注册
-    result = await db.execute(select(User).where(User.email == request.email))
+    result = await db.execute(select(User).where(User.email == body.email))
     existing_user = result.scalar_one_or_none()
     if existing_user:
         raise HTTPException(
@@ -61,9 +65,9 @@ async def register(
 
     # 创建用户
     user = User(
-        email=request.email,
-        password_hash=hash_password(request.password),
-        username=request.username,
+        email=body.email,
+        password_hash=hash_password(body.password),
+        username=body.username,
         is_active=True,
     )
     db.add(user)
@@ -83,8 +87,10 @@ async def register(
 
 
 @router.post("/login", response_model=TokenResponse)
+@limiter.limit("10/minute")
 async def login(
-    request: UserLoginRequest,
+    request: Request,
+    body: UserLoginRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> TokenResponse:
     """
@@ -101,11 +107,11 @@ async def login(
         TokenResponse: JWT Token + 用户信息
     """
     # 查找用户
-    result = await db.execute(select(User).where(User.email == request.email))
+    result = await db.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
 
     # 验证用户存在且密码正确（使用常量时间比较防止时序攻击）
-    if not user or not verify_password(request.password, user.password_hash):
+    if not user or not verify_password(body.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="邮箱或密码错误",

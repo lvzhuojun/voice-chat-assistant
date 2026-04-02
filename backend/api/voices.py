@@ -8,10 +8,12 @@ import tempfile
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, status
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+
+from backend.core.limiter import limiter
 
 from backend.database import get_db
 from backend.models.user import User
@@ -61,7 +63,9 @@ async def get_redis():
 
 
 @router.post("/import", response_model=VoiceModelResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("20/hour")
 async def import_voice(
+    request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
     file: UploadFile = File(..., description="音色 ZIP 包"),
