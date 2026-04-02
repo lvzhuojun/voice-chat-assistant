@@ -9,10 +9,11 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Mic,
+  Menu,
+  X,
   Plus,
   MessageSquare,
   Trash2,
-  Settings,
   LogOut,
   Send,
   Keyboard,
@@ -52,6 +53,7 @@ export default function ChatPage() {
   const [textInput, setTextInput] = useState('')
   const [inputMode, setInputMode] = useState<'voice' | 'text'>('voice')
   const [isLoadingMessages, setIsLoadingMessages] = useState(false)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -60,7 +62,9 @@ export default function ChatPage() {
     conversationId: activeConversationId,
   })
 
-  const { recordingState, audioLevel, startRecording, stopRecording } = useAudioRecorder()
+  const { recordingState, audioLevel, startRecording, stopRecording } = useAudioRecorder({
+    onAutoStop: sendAudio,
+  })
 
   // 初始化：加载对话列表 + 当前音色
   useEffect(() => {
@@ -174,15 +178,45 @@ export default function ChatPage() {
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: '#0a0a0f' }}>
+      {/* ── 移动端遮罩层 ───────────────────────────────────────── */}
+      <AnimatePresence>
+        {isSidebarOpen && (
+          <motion.div
+            key="backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-black/60 z-40 md:hidden"
+            onClick={() => setIsSidebarOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+
       {/* ── 左侧侧边栏 ─────────────────────────────────────────── */}
-      <aside className="w-[260px] flex-shrink-0 flex flex-col border-r border-white/[0.06] bg-white/[0.02]">
+      <aside
+        className={`
+          fixed inset-y-0 left-0 z-50 flex flex-col w-[280px]
+          border-r border-white/[0.06] bg-[#0a0a0f]
+          transition-transform duration-300 ease-in-out
+          ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+          md:relative md:translate-x-0 md:w-[260px] md:flex-shrink-0
+        `}
+      >
         {/* Logo + 新建按钮 */}
         <div className="p-4 border-b border-white/[0.06]">
           <div className="flex items-center gap-2 mb-3">
             <div className="w-8 h-8 rounded-xl bg-brand-gradient flex items-center justify-center">
               <Mic className="w-4 h-4 text-white" />
             </div>
-            <span className="font-bold text-text-primary">Voice Chat</span>
+            <span className="font-bold text-text-primary flex-1">Voice Chat</span>
+            {/* 关闭按钮（移动端） */}
+            <button
+              className="md:hidden w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 transition-all"
+              onClick={() => setIsSidebarOpen(false)}
+            >
+              <X className="w-4 h-4 text-text-muted" />
+            </button>
           </div>
           <button
             onClick={handleNewConversation}
@@ -204,7 +238,7 @@ export default function ChatPage() {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -10 }}
                 transition={{ duration: 0.15 }}
-                onClick={() => setActiveConversation(conv.id)}
+                onClick={() => { setActiveConversation(conv.id); setIsSidebarOpen(false) }}
                 className={`group flex items-center gap-2 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-150 mb-0.5 ${
                   activeConversationId === conv.id
                     ? 'bg-brand-purple/20 text-text-primary'
@@ -271,7 +305,14 @@ export default function ChatPage() {
       {/* ── 右侧主区域 ──────────────────────────────────────────── */}
       <main className="flex-1 flex flex-col min-w-0">
         {/* 顶部栏 */}
-        <div className="h-14 border-b border-white/[0.06] flex items-center px-6 gap-3 flex-shrink-0">
+        <div className="h-14 border-b border-white/[0.06] flex items-center px-4 md:px-6 gap-3 flex-shrink-0">
+          {/* 汉堡按钮（移动端） */}
+          <button
+            className="md:hidden w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10 transition-all flex-shrink-0"
+            onClick={() => setIsSidebarOpen(true)}
+          >
+            <Menu className="w-5 h-5 text-text-secondary" />
+          </button>
           <h2 className="font-semibold text-text-primary flex-1 truncate">
             {activeConversation?.title ?? '选择或新建对话'}
           </h2>
@@ -289,7 +330,7 @@ export default function ChatPage() {
         </div>
 
         {/* 消息区域 */}
-        <div className="flex-1 overflow-y-auto px-6 py-6">
+        <div className="flex-1 overflow-y-auto px-3 py-4 md:px-6 md:py-6">
           {!activeConversationId ? (
             // 空状态
             <div className="flex flex-col items-center justify-center h-full text-center">
@@ -326,7 +367,7 @@ export default function ChatPage() {
         </div>
 
         {/* 底部输入区 */}
-        <div className="border-t border-white/[0.06] px-6 py-5 flex-shrink-0">
+        <div className="border-t border-white/[0.06] px-4 py-4 md:px-6 md:py-5 flex-shrink-0">
           {inputMode === 'voice' ? (
             // 语音模式
             <div className="flex items-center justify-center gap-8">

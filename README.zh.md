@@ -64,6 +64,8 @@ sequenceDiagram
 - **实时 STT** — faster-whisper `medium`，CUDA 加速，转写结果通过 WebSocket 实时返回
 - **流式 LLM** — 支持任意 OpenAI 兼容接口；未配置 Key 时自动进入 mock 模式
 - **全双工 WebSocket** — 音频帧输入，转写文字 + LLM 分块 + 音频块同步输出
+- **VAD 自动停止录音** — 静音检测（1.5 秒），说完话自动停止录音，无需一直按住按钮
+- **移动端响应式布局** — 手机上侧边栏变为滑入抽屉，汉堡菜单控制，触控友好间距
 - **对话标题自动生成** — 首轮对话结束后 LLM 自动生成简洁标题，通过 `title_updated` WebSocket 事件实时更新侧边栏
 - **音色管理** — ZIP 包导入音色，每个对话可独立切换当前音色
 - **对话历史** — 消息和音频 URL 持久化到 PostgreSQL

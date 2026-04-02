@@ -64,6 +64,8 @@ sequenceDiagram
 - **Real-time STT** — faster-whisper `medium` on CUDA, streams transcript back over WebSocket
 - **Streaming LLM** — any OpenAI-compatible endpoint; mock mode when no key is set
 - **Full-duplex WebSocket** — audio frames in, transcript + LLM chunks + audio chunks out
+- **VAD auto-stop** — silence detection (1.5 s) automatically ends recording after speech; no need to hold the button
+- **Mobile-responsive layout** — slide-in sidebar drawer on mobile, hamburger menu, touch-optimized spacing
 - **Auto conversation title** — LLM generates a concise title after the first exchange; updates sidebar instantly via `title_updated` WebSocket event
 - **Voice management** — import voices as ZIP, switch active voice per conversation
 - **Conversation history** — messages and audio URLs persisted in PostgreSQL

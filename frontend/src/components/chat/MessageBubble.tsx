@@ -25,7 +25,7 @@ export default function MessageBubble({ message, audioData }: MessageBubbleProps
         transition={{ duration: 0.25 }}
         className="flex justify-end mb-4"
       >
-        <div className="max-w-[70%]">
+        <div className="max-w-[88%] md:max-w-[70%]">
           <div className="bg-brand-gradient text-white rounded-2xl rounded-tr-sm px-4 py-3 text-sm leading-relaxed shadow-glow-purple/30">
             {message.content}
           </div>
@@ -52,7 +52,7 @@ export default function MessageBubble({ message, audioData }: MessageBubbleProps
         <Mic className="w-4 h-4 text-white" />
       </div>
 
-      <div className="max-w-[70%]">
+      <div className="max-w-[88%] md:max-w-[70%]">
         {/* 消息气泡 */}
         <div className="glass-card px-4 py-3 text-sm text-text-primary leading-relaxed rounded-2xl rounded-tl-sm">
           {message.content}
@@ -83,7 +83,7 @@ export function StreamingBubble({ text }: { text: string }) {
       <div className="w-8 h-8 rounded-xl bg-brand-gradient flex items-center justify-center flex-shrink-0 mt-1">
         <Mic className="w-4 h-4 text-white" />
       </div>
-      <div className="max-w-[70%]">
+      <div className="max-w-[88%] md:max-w-[70%]">
         <div className="glass-card px-4 py-3 text-sm text-text-primary leading-relaxed rounded-2xl rounded-tl-sm">
           {text}
           <span className="inline-block w-0.5 h-4 bg-brand-purple ml-0.5 animate-pulse" />
