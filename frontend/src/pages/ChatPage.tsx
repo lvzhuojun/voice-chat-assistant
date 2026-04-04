@@ -165,11 +165,6 @@ export default function ChatPage() {
   // 发送文字消息
   const handleSendText = () => {
     if (!textInput.trim() || !activeConversationId) return
-    if (!isConnected) {
-      setNotice({ msg: '连接中，请稍后再试', type: 'info' })
-      setTimeout(() => setNotice(null), 3000)
-      return
-    }
     // 本地显示用户消息
     addMessage({
       id: Date.now(),

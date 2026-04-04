@@ -251,28 +251,42 @@ export function useWebSocket({ conversationId }: UseWebSocketProps): UseWebSocke
     }
   }, [conversationId])  // eslint-disable-line react-hooks/exhaustive-deps
 
-  /** 发送音频二进制帧 */
+  /** 发送音频二进制帧（CONNECTING 时自动等握手完成再发） */
   const sendAudio = useCallback((audioBlob: Blob) => {
     const ws = wsRef.current
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-      console.warn('WebSocket 未连接，无法发送音频')
+    if (!ws || ws.readyState === WebSocket.CLOSING || ws.readyState === WebSocket.CLOSED) {
+      console.warn('WebSocket 已断开，无法发送音频')
       return
     }
     setProcessing(true)
     clearStreamingText()
-    ws.send(audioBlob)
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(audioBlob)
+    } else {
+      // CONNECTING：握手完成后立即发送
+      ws.addEventListener('open', () => {
+        wsRef.current?.send(audioBlob)
+      }, { once: true })
+    }
   }, [setProcessing, clearStreamingText])
 
-  /** 发送文字消息 */
+  /** 发送文字消息（CONNECTING 时自动等握手完成再发） */
   const sendText = useCallback((text: string) => {
     const ws = wsRef.current
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-      console.warn('WebSocket 未连接，无法发送文字')
+    if (!ws || ws.readyState === WebSocket.CLOSING || ws.readyState === WebSocket.CLOSED) {
+      console.warn('WebSocket 已断开，无法发送文字')
       return
     }
     setProcessing(true)
     clearStreamingText()
-    ws.send(JSON.stringify({ type: 'text', content: text }))
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'text', content: text }))
+    } else {
+      // CONNECTING：握手完成后立即发送
+      ws.addEventListener('open', () => {
+        wsRef.current?.send(JSON.stringify({ type: 'text', content: text }))
+      }, { once: true })
+    }
   }, [setProcessing, clearStreamingText])
 
   /** 手动断开 */
