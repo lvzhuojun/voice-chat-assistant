@@ -54,11 +54,12 @@ export default function ChatPage() {
   const [inputMode, setInputMode] = useState<'voice' | 'text'>('voice')
   const [isLoadingMessages, setIsLoadingMessages] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [notice, setNotice] = useState<{ msg: string; type: 'error' | 'info' } | null>(null)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const { isConnected, sendAudio, sendText } = useWebSocket({
+  const { isConnected, wsError, sendAudio, sendText } = useWebSocket({
     conversationId: activeConversationId,
   })
 
@@ -108,6 +109,14 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, streamingText])
 
+  // 将 WebSocket 服务端错误同步到通知栏
+  useEffect(() => {
+    if (!wsError) return
+    setNotice({ msg: wsError, type: 'error' })
+    const t = setTimeout(() => setNotice(null), 5000)
+    return () => clearTimeout(t)
+  }, [wsError])
+
   // 新建对话
   const handleNewConversation = async () => {
     try {
@@ -156,6 +165,11 @@ export default function ChatPage() {
   // 发送文字消息
   const handleSendText = () => {
     if (!textInput.trim() || !activeConversationId) return
+    if (!isConnected) {
+      setNotice({ msg: '连接中，请稍后再试', type: 'info' })
+      setTimeout(() => setNotice(null), 3000)
+      return
+    }
     // 本地显示用户消息
     addMessage({
       id: Date.now(),
@@ -365,6 +379,26 @@ export default function ChatPage() {
             </>
           )}
         </div>
+
+        {/* 通知栏（WS 错误 / 连接提示） */}
+        <AnimatePresence>
+          {notice && (
+            <motion.div
+              key="notice"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className={`px-4 md:px-6 py-2 text-sm flex-shrink-0 ${
+                notice.type === 'error'
+                  ? 'text-red-400 bg-red-500/10 border-t border-red-500/20'
+                  : 'text-yellow-400 bg-yellow-500/10 border-t border-yellow-500/20'
+              }`}
+            >
+              {notice.msg}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* 底部输入区 */}
         <div className="border-t border-white/[0.06] px-4 py-4 md:px-6 md:py-5 flex-shrink-0">

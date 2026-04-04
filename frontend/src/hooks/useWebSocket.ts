@@ -14,6 +14,7 @@ interface UseWebSocketProps {
 
 interface UseWebSocketReturn {
   isConnected: boolean
+  wsError: string | null
   sendAudio: (audioBlob: Blob) => void
   sendText: (text: string) => void
   disconnect: () => void
@@ -26,7 +27,9 @@ export function useWebSocket({ conversationId }: UseWebSocketProps): UseWebSocke
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectCountRef = useRef(0)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const wsErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [isConnected, setIsConnected] = useState(false)
+  const [wsError, setWsError] = useState<string | null>(null)
 
   const { token } = useAuthStore()
   const {
@@ -157,6 +160,9 @@ export function useWebSocket({ conversationId }: UseWebSocketProps): UseWebSocke
           console.error('WebSocket 服务端错误:', msg.message)
           clearStreamingText()
           setProcessing(false)
+          setWsError(msg.message)
+          if (wsErrorTimerRef.current) clearTimeout(wsErrorTimerRef.current)
+          wsErrorTimerRef.current = setTimeout(() => setWsError(null), 5000)
           break
       }
     },
@@ -276,5 +282,5 @@ export function useWebSocket({ conversationId }: UseWebSocketProps): UseWebSocke
     setIsConnected(false)
   }, [])
 
-  return { isConnected, sendAudio, sendText, disconnect }
+  return { isConnected, wsError, sendAudio, sendText, disconnect }
 }

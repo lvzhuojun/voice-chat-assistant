@@ -22,8 +22,12 @@ export default function RegisterPage() {
       setError('请填写所有必填项')
       return
     }
-    if (password.length < 6) {
-      setError('密码至少需要 6 位')
+    if (password.length < 8) {
+      setError('密码至少需要 8 位')
+      return
+    }
+    if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+      setError('密码必须同时包含字母和数字')
       return
     }
     if (password !== confirmPassword) {

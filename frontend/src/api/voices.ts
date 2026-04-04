@@ -36,6 +36,9 @@ export const deleteVoice = (id: number) =>
 export const selectVoice = (id: number) =>
   client.post<{ message: string; voice_id: string }>(`/voices/${id}/select`)
 
-/** 获取当前选中音色 */
-export const getCurrentVoice = () =>
-  client.get<VoiceModel>('/voices/current/info')
+/** 获取当前选中音色（未设置时返回 null，不抛出异常） */
+export const getCurrentVoice = (): Promise<{ data: VoiceModel | null }> =>
+  client.get<VoiceModel>('/voices/current/info').catch((err) => {
+    if (err?.response?.status === 404) return { data: null }
+    throw err
+  })

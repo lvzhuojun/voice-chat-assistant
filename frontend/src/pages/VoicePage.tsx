@@ -3,7 +3,7 @@
  * 拖拽上传 ZIP + 卡片网格 + 选中发光边框 + 删除确认弹窗
  */
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, forwardRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useDropzone } from 'react-dropzone'
@@ -81,24 +81,23 @@ function DeleteConfirmDialog({
   )
 }
 
-/** 音色卡片 */
-function VoiceCard({
-  voice,
-  isSelected,
-  onSelect,
-  onDelete,
-}: {
+interface VoiceCardProps {
   voice: VoiceModel
   isSelected: boolean
   onSelect: () => void
   onDelete: () => void
-}) {
+}
+
+/** 音色卡片（forwardRef 供 framer-motion AnimatePresence popLayout 测量） */
+const VoiceCard = forwardRef<HTMLDivElement, VoiceCardProps>(
+function VoiceCard({ voice, isSelected, onSelect, onDelete }, ref) {
   const metadata = voice.metadata_json as Record<string, unknown> | undefined
   const gptEpochs = metadata?.training_epochs_gpt as number | undefined
   const sovitsEpochs = metadata?.training_epochs_sovits as number | undefined
 
   return (
     <motion.div
+      ref={ref}
       layout
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
@@ -182,7 +181,7 @@ function VoiceCard({
       </button>
     </motion.div>
   )
-}
+})
 
 export default function VoicePage() {
   const navigate = useNavigate()
@@ -227,7 +226,20 @@ export default function VoicePage() {
       })
       setUploadProgress({ filename: file.name, progress: 100, status: 'success' })
       addVoice(res.data)
-      showToast(`音色「${res.data.voice_name}」导入成功`)
+
+      // 若当前无选中音色，自动选择刚上传的音色
+      if (!currentVoice) {
+        try {
+          await voiceApi.selectVoice(res.data.id)
+          setCurrentVoice(res.data)
+          showToast(`音色「${res.data.voice_name}」导入成功，已自动设为当前音色`)
+        } catch {
+          showToast(`音色「${res.data.voice_name}」导入成功`)
+        }
+      } else {
+        showToast(`音色「${res.data.voice_name}」导入成功`)
+      }
+
       setTimeout(() => setUploadProgress(null), 2000)
     } catch (err: unknown) {
       const msg =
@@ -237,7 +249,7 @@ export default function VoicePage() {
       showToast(msg, 'error')
       setTimeout(() => setUploadProgress(null), 4000)
     }
-  }, [addVoice])
+  }, [addVoice, currentVoice, setCurrentVoice])
 
   // Dropzone 配置
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
