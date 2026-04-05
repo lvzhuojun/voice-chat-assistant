@@ -12,7 +12,7 @@ interface ChatState {
   streamingText: string          // LLM 流式文字（打字机效果）
   isProcessing: boolean          // 正在处理（STT/LLM/TTS）
   pendingAudioChunks: string[]   // 等待播放的 base64 音频块
-  messageAudioData: Record<number, string>  // messageId → base64 WAV（供重播）
+  messageAudioData: Record<number, string[]>  // messageId → base64 WAV 块列表（供重播）
 
   setConversations: (convs: Conversation[]) => void
   addConversation: (conv: Conversation) => void
@@ -25,7 +25,7 @@ interface ChatState {
   setProcessing: (processing: boolean) => void
   addAudioChunk: (chunk: string) => void
   clearAudioChunks: () => void
-  setMessageAudio: (messageId: number, data: string) => void
+  setMessageAudio: (messageId: number, data: string[]) => void
   updateConversationTitle: (id: number, title: string) => void
 }
 

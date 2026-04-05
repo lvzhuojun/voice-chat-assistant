@@ -48,8 +48,8 @@ export function useWebSocket({ conversationId }: UseWebSocketProps): UseWebSocke
   const streamingText = useChatStore((s) => s.streamingText)
   streamingTextRef.current = streamingText
 
-  // 追踪本轮最后一个 TTS 音频（用于 done 时存入 messageAudioData 供重播）
-  const currentAudioRef = useRef<string>('')
+  // 追踪本轮所有 TTS 音频块（用于 done 时存入 messageAudioData 供重播）
+  const currentAudioChunksRef = useRef<string[]>([])
   // 顺序音频播放队列（分句 TTS 场景：按 seq 顺序入队，依次播放）
   const audioQueueRef = useRef<string[]>([])
   const isPlayingAudioRef = useRef(false)
@@ -122,7 +122,7 @@ export function useWebSocket({ conversationId }: UseWebSocketProps): UseWebSocke
         case 'audio_chunk':
           // 分句 TTS 音频：入队顺序播放（保证多句不重叠、不乱序）
           addAudioChunk(msg.data)
-          currentAudioRef.current = msg.data  // 保存最后一句用于重播
+          currentAudioChunksRef.current.push(msg.data)  // 累积所有块供重播
           enqueueAudio(msg.data)
           break
 
@@ -138,10 +138,10 @@ export function useWebSocket({ conversationId }: UseWebSocketProps): UseWebSocke
               created_at: new Date().toISOString(),
             })
           }
-          // 将最后一段音频与消息绑定（供重播，完整重播需服务端持久化）
-          if (currentAudioRef.current) {
-            setMessageAudio(messageId, currentAudioRef.current)
-            currentAudioRef.current = ''
+          // 将所有音频块与消息绑定（供完整重播）
+          if (currentAudioChunksRef.current.length > 0) {
+            setMessageAudio(messageId, [...currentAudioChunksRef.current])
+            currentAudioChunksRef.current = []
           }
           clearStreamingText()
           clearAudioChunks()
@@ -207,7 +207,10 @@ export function useWebSocket({ conversationId }: UseWebSocketProps): UseWebSocke
 
     ws.onclose = (event) => {
       setIsConnected(false)
-      wsRef.current = null
+      // 仅在当前 ws 仍是活跃引用时才清空，防止切换对话时新 ws 被意外覆盖
+      if (wsRef.current === ws) {
+        wsRef.current = null
+      }
       console.log(`WebSocket 断开：code=${event.code}`)
 
       // 非正常关闭时自动重连
@@ -229,7 +232,7 @@ export function useWebSocket({ conversationId }: UseWebSocketProps): UseWebSocke
   useEffect(() => {
     // 清空音频队列，避免上一个对话的音频在新对话中继续播放
     clearAudioQueue()
-    currentAudioRef.current = ''
+    currentAudioChunksRef.current = []
 
     if (wsRef.current) {
       wsRef.current.close(1000)

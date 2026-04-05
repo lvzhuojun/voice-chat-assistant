@@ -11,7 +11,7 @@ import type { Message } from '@/types'
 
 interface MessageBubbleProps {
   message: Message
-  audioData?: string  // base64 WAV（AI 消息专用）
+  audioData?: string[]  // base64 WAV 块列表（AI 消息专用）
 }
 
 export default function MessageBubble({ message, audioData }: MessageBubbleProps) {
