@@ -47,7 +47,13 @@ export const useChatStore = create<ChatState>((set) => ({
       activeConversationId:
         state.activeConversationId === id ? null : state.activeConversationId,
     })),
-  setActiveConversation: (id) => set({ activeConversationId: id }),
+  setActiveConversation: (id) =>
+    set({
+      activeConversationId: id,
+      isProcessing: false,
+      streamingText: '',
+      pendingAudioChunks: [],
+    }),
   setMessages: (messages) => set({ messages }),
   addMessage: (message) =>
     set((state) => ({ messages: [...state.messages, message] })),

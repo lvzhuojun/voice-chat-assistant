@@ -24,6 +24,4 @@ export const deleteConversation = (id: number) =>
 
 /** 更新对话标题 */
 export const updateConversationTitle = (id: number, title: string) =>
-  client.patch<Conversation>(`/conversations/${id}/title`, null, {
-    params: { title },
-  })
+  client.patch<Conversation>(`/conversations/${id}/title`, { title })

@@ -189,20 +189,27 @@ stop.bat   # or .\stop.ps1
 voice-chat-assistant/
 ├── backend/                # FastAPI application
 │   ├── api/                # Route handlers (auth, voices, conversations, ws)
+│   ├── core/               # Business logic: STT / LLM / TTS engines, security, pipeline
 │   ├── models/             # SQLAlchemy ORM models
-│   ├── services/           # STT / LLM / TTS engine wrappers
+│   ├── schemas/            # Pydantic request/response DTOs
+│   ├── utils/              # File utilities, logger
 │   ├── alembic/            # Database migrations
 │   └── main.py
 ├── frontend/               # React + Vite application
 │   └── src/
-│       ├── components/     # UI components
+│       ├── api/            # Axios API client modules
+│       ├── components/     # Reusable UI components
+│       ├── hooks/          # Custom hooks (useWebSocket, useAudioRecorder, useAuth)
 │       ├── pages/          # Route pages
-│       └── stores/         # Zustand state
+│       ├── store/          # Zustand state stores
+│       └── types/          # Shared TypeScript interfaces
 ├── docker/                 # Docker Compose + Nginx config
 ├── setup/                  # Installation scripts
 ├── docs/                   # Documentation
 │   ├── API.md
 │   ├── DEPLOY.md
+│   ├── DEVELOPMENT.md
+│   ├── DOC_STANDARD.md
 │   └── VOICE_MODEL_IMPORT.md
 ├── storage/                # Runtime data (gitignored)
 │   ├── voice_models/       # Imported voice model files
@@ -236,8 +243,14 @@ See [docs/VOICE_MODEL_IMPORT.md](docs/VOICE_MODEL_IMPORT.md) for the full guide.
 |----------|-------------|
 | [docs/API.md](docs/API.md) | REST API and WebSocket reference |
 | [docs/DEPLOY.md](docs/DEPLOY.md) | Production deployment on Linux |
+| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Local development setup and workflow |
 | [docs/VOICE_MODEL_IMPORT.md](docs/VOICE_MODEL_IMPORT.md) | How to import GPT-SoVITS voices |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Consolidated known issues and fixes |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System architecture diagrams |
+| [CHANGELOG.md](CHANGELOG.md) | Version history and release notes |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute to this project |
+| [SECURITY.md](SECURITY.md) | Security policy and vulnerability reporting |
+| [docs/DOC_STANDARD.md](docs/DOC_STANDARD.md) | Documentation standard (rules for all doc changes) |
 
 ---
 

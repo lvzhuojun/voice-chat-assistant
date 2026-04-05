@@ -126,6 +126,7 @@ export default function ChatPage() {
       })
       addConversation(res.data)
       setActiveConversation(res.data.id)
+      setIsSidebarOpen(false)
     } catch {
       console.error('新建对话失败')
     }

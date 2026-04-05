@@ -4,6 +4,7 @@ STT（语音转文字）引擎模块
 RTX 5060 / CUDA 13.1 / PyTorch 2.7 cu128 兼容
 """
 
+import asyncio
 import io
 import sys
 import tempfile
@@ -83,7 +84,7 @@ def get_whisper_model():
         return None
 
 
-def convert_audio_to_wav(audio_bytes: bytes, input_format: str = "webm") -> Optional[bytes]:
+async def convert_audio_to_wav(audio_bytes: bytes, input_format: str = "webm") -> Optional[bytes]:
     """
     使用 FFmpeg 将音频字节流转换为 WAV 格式。
     浏览器 MediaRecorder 默认输出 WebM/Opus，需要转换。
@@ -120,7 +121,8 @@ def convert_audio_to_wav(audio_bytes: bytes, input_format: str = "webm") -> Opti
             str(out_path),
         ]
 
-        result = subprocess.run(
+        result = await asyncio.to_thread(
+            subprocess.run,
             cmd,
             capture_output=True,
             timeout=30,
@@ -184,7 +186,7 @@ async def transcribe_audio(
     # 如果不是 WAV，先转换
     if audio_format.lower() not in ("wav",):
         logger.debug(f"转换音频格式：{audio_format} → WAV")
-        wav_bytes = convert_audio_to_wav(audio_bytes, input_format=audio_format)
+        wav_bytes = await convert_audio_to_wav(audio_bytes, input_format=audio_format)
         if wav_bytes is None:
             logger.error("音频格式转换失败")
             return None
@@ -196,35 +198,35 @@ async def transcribe_audio(
         tmp_path = Path(tmp.name)
         tmp.write(wav_bytes)
 
+    def _run_transcribe() -> Optional[str]:
+        """在线程池中执行阻塞的 Whisper 推理，避免占用 asyncio 事件循环。"""
+        try:
+            # 转写参数
+            # - beam_size=5：束搜索宽度，5 是精度和速度的平衡点
+            # - language=None：自动检测语言（支持中英文混合）
+            # - vad_filter=True：语音活动检测，过滤静音段
+            segments, info = model.transcribe(
+                str(tmp_path),
+                beam_size=5,
+                language=language,  # None 时自动检测
+                vad_filter=True,
+                vad_parameters=dict(min_silence_duration_ms=500),
+            )
+
+            detected_lang = info.language
+            logger.debug(f"检测到语言：{detected_lang}（置信度：{info.language_probability:.2f}）")
+
+            # 合并所有分段（中文不加空格，各分段 strip 后直接拼接）
+            text_parts = [s.text.strip() for s in segments if s.text.strip()]
+            full_text = "".join(text_parts).strip()
+            logger.info(f"STT 识别结果：{full_text[:100]}...")
+            return full_text if full_text else None
+        except Exception as e:
+            logger.error(f"Whisper 转写失败：{e}")
+            return None
+
     try:
-        # 转写参数
-        # - beam_size=5：束搜索宽度，5 是精度和速度的平衡点
-        # - language=None：自动检测语言（支持中英文混合）
-        # - vad_filter=True：语音活动检测，过滤静音段
-        segments, info = model.transcribe(
-            str(tmp_path),
-            beam_size=5,
-            language=language,  # None 时自动检测
-            vad_filter=True,
-            vad_parameters=dict(min_silence_duration_ms=500),
-        )
-
-        detected_lang = info.language
-        logger.debug(f"检测到语言：{detected_lang}（置信度：{info.language_probability:.2f}）")
-
-        # 合并所有分段
-        text_parts = []
-        for segment in segments:
-            text_parts.append(segment.text.strip())
-
-        full_text = " ".join(filter(None, text_parts)).strip()
-        logger.info(f"STT 识别结果：{full_text[:100]}...")
-
-        return full_text if full_text else None
-
-    except Exception as e:
-        logger.error(f"Whisper 转写失败：{e}")
-        return None
+        return await asyncio.to_thread(_run_transcribe)
     finally:
         if tmp_path.exists():
             tmp_path.unlink()

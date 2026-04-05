@@ -186,7 +186,8 @@ export function useWebSocket({ conversationId }: UseWebSocketProps): UseWebSocke
     if (!conversationId || !token) return
     if (wsRef.current?.readyState === WebSocket.OPEN) return
 
-    const wsUrl = `ws://${window.location.host}/ws/chat/${conversationId}?token=${token}`
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const wsUrl = `${wsProtocol}//${window.location.host}/ws/chat/${conversationId}?token=${token}`
     const ws = new WebSocket(wsUrl)
     wsRef.current = ws
 
@@ -206,10 +207,11 @@ export function useWebSocket({ conversationId }: UseWebSocketProps): UseWebSocke
     }
 
     ws.onclose = (event) => {
-      setIsConnected(false)
-      // 仅在当前 ws 仍是活跃引用时才清空，防止切换对话时新 ws 被意外覆盖
+      // 仅在当前 ws 仍是活跃引用时才更新状态，防止旧连接的 close 事件
+      // 覆盖新连接已建立后的 isConnected=true
       if (wsRef.current === ws) {
         wsRef.current = null
+        setIsConnected(false)
       }
       console.log(`WebSocket 断开：code=${event.code}`)
 
@@ -266,10 +268,9 @@ export function useWebSocket({ conversationId }: UseWebSocketProps): UseWebSocke
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(audioBlob)
     } else {
-      // CONNECTING：握手完成后立即发送
-      ws.addEventListener('open', () => {
-        wsRef.current?.send(audioBlob)
-      }, { once: true })
+      // CONNECTING：握手完成后立即发送。
+      // 使用捕获的 ws 而非 wsRef.current，避免连接切换后消息发到错误对话。
+      ws.addEventListener('open', () => { ws.send(audioBlob) }, { once: true })
     }
   }, [setProcessing, clearStreamingText])
 
@@ -285,9 +286,9 @@ export function useWebSocket({ conversationId }: UseWebSocketProps): UseWebSocke
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'text', content: text }))
     } else {
-      // CONNECTING：握手完成后立即发送
+      // CONNECTING：同上，使用捕获的 ws
       ws.addEventListener('open', () => {
-        wsRef.current?.send(JSON.stringify({ type: 'text', content: text }))
+        ws.send(JSON.stringify({ type: 'text', content: text }))
       }, { once: true })
     }
   }, [setProcessing, clearStreamingText])

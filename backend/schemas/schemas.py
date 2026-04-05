@@ -101,6 +101,11 @@ class ConversationCreateRequest(BaseModel):
     voice_model_id: Optional[int] = Field(default=None, description="使用的音色 ID")
 
 
+class ConversationTitleUpdateRequest(BaseModel):
+    """更新对话标题请求体。"""
+    title: str = Field(..., min_length=1, max_length=255, description="新标题")
+
+
 class ConversationResponse(BaseModel):
     """对话信息响应。"""
     id: int

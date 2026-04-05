@@ -4,6 +4,7 @@ TTS（文字转语音）引擎模块
 使用 LRU 缓存最多 3 个音色模型，避免 VRAM 溢出
 """
 
+import asyncio
 import io
 import sys
 import tempfile
@@ -226,76 +227,78 @@ async def synthesize_speech(
         logger.error(f"无法加载 TTS 模型：{voice_id}")
         return None
 
-    try:
-        # 语言映射（GPT-SoVITS 接受的格式）
-        lang_map = {
-            "zh": "zh",
-            "en": "en",
-            "auto": "auto",
-            "ja": "ja",
-        }
-        text_lang = lang_map.get(language.lower(), "zh")
+    # 语言映射（GPT-SoVITS 接受的格式）
+    lang_map = {
+        "zh": "zh",
+        "en": "en",
+        "auto": "auto",
+        "ja": "ja",
+    }
+    text_lang = lang_map.get(language.lower(), "zh")
 
-        # 推理参数（与项目一的调用方式一致）
-        infer_params = {
-            "text": text.strip(),
-            "text_lang": text_lang,
-            "ref_audio_path": str(ref_audio_path),  # 必须使用 reference.wav
-            "prompt_lang": text_lang,
-            "prompt_text": "",              # 参考文本（可选，留空使用原始参考音频）
-            "top_k": top_k,
-            "top_p": top_p,
-            "temperature": temperature,
-            "text_split_method": "cut5",   # 按标点分割（适合中英文混合）
-            "batch_size": 1,
-            "speed_factor": speed_factor,
-            "fragment_interval": 0.3,      # 分段间隔（秒）
-            "streaming_mode": False,       # 非流式，一次返回全部音频
-            "seed": -1,                    # 随机种子，-1 表示随机
-            "parallel_infer": True,        # 并行推理
-            "repetition_penalty": 1.35,    # 重复惩罚（与项目一一致）
-        }
+    # 推理参数（与项目一的调用方式一致）
+    infer_params = {
+        "text": text.strip(),
+        "text_lang": text_lang,
+        "ref_audio_path": str(ref_audio_path),  # 必须使用 reference.wav
+        "prompt_lang": text_lang,
+        "prompt_text": "",              # 参考文本（可选，留空使用原始参考音频）
+        "top_k": top_k,
+        "top_p": top_p,
+        "temperature": temperature,
+        "text_split_method": "cut5",   # 按标点分割（适合中英文混合）
+        "batch_size": 1,
+        "speed_factor": speed_factor,
+        "fragment_interval": 0.3,      # 分段间隔（秒）
+        "streaming_mode": False,       # 非流式，一次返回全部音频
+        "seed": -1,                    # 随机种子，-1 表示随机
+        "parallel_infer": True,        # 并行推理
+        "repetition_penalty": 1.35,    # 重复惩罚（与项目一一致）
+    }
 
-        logger.debug(f"TTS 推理：text='{text[:50]}...' lang={text_lang} voice={voice_id}")
+    logger.debug(f"TTS 推理：text='{text[:50]}...' lang={text_lang} voice={voice_id}")
 
-        # 执行推理
-        result_generator = tts.run(infer_params)
+    def _run_inference() -> Optional[bytes]:
+        """在线程池中执行阻塞的 GPU 推理，避免占用 asyncio 事件循环。"""
+        try:
+            result_generator = tts.run(infer_params)
 
-        # 收集所有音频块并合并
-        audio_segments = []
-        sample_rate = None
+            # 收集所有音频块并合并
+            audio_segments = []
+            sample_rate = None
 
-        for sr, audio_data in result_generator:
-            if sample_rate is None:
-                sample_rate = sr
-            audio_segments.append(audio_data)
+            for sr, audio_data in result_generator:
+                if sample_rate is None:
+                    sample_rate = sr
+                audio_segments.append(audio_data)
 
-        if not audio_segments:
-            logger.error(f"TTS 推理未产生音频：{voice_id}")
+            if not audio_segments:
+                logger.error(f"TTS 推理未产生音频：{voice_id}")
+                return None
+
+            # 合并音频片段为 WAV bytes
+            import numpy as np
+            import soundfile as sf
+
+            combined = audio_segments[0] if len(audio_segments) == 1 else np.concatenate(audio_segments, axis=0)
+
+            buffer = io.BytesIO()
+            sf.write(buffer, combined, sample_rate, format="WAV")
+            wav_bytes = buffer.getvalue()
+
+            logger.info(
+                f"TTS 合成完成：{len(wav_bytes) // 1024}KB，"
+                f"时长约 {len(combined) / sample_rate:.1f}s"
+            )
+            return wav_bytes
+        except Exception as e:
+            logger.error(f"TTS 推理失败（voice_id={voice_id}）：{e}", exc_info=True)
             return None
 
-        # 合并音频片段为 WAV bytes
-        import numpy as np
-        import soundfile as sf
-
-        if len(audio_segments) == 1:
-            combined = audio_segments[0]
-        else:
-            combined = np.concatenate(audio_segments, axis=0)
-
-        # 写入内存缓冲区
-        buffer = io.BytesIO()
-        sf.write(buffer, combined, sample_rate, format="WAV")
-        wav_bytes = buffer.getvalue()
-
-        logger.info(
-            f"TTS 合成完成：{len(wav_bytes) // 1024}KB，"
-            f"时长约 {len(combined) / sample_rate:.1f}s"
-        )
-        return wav_bytes
-
+    try:
+        return await asyncio.to_thread(_run_inference)
     except Exception as e:
-        logger.error(f"TTS 推理失败（voice_id={voice_id}）：{e}", exc_info=True)
+        logger.error(f"TTS 线程调度失败（voice_id={voice_id}）：{e}", exc_info=True)
         return None
 
 

@@ -58,14 +58,17 @@ Required fields to set:
 
 ```bash
 # Strong random secret — generate with:
-# openssl rand -hex 32
-JWT_SECRET_KEY=<your-secret>
+#   openssl rand -hex 32
+JWT_SECRET_KEY=<your-jwt-secret>
 
-# Update password to something secure
-DATABASE_URL=postgresql://voice:strongpassword@postgres:5432/voicechat
+# Replace <your-db-password> with a strong unique password
+DATABASE_URL=postgresql://voice:<your-db-password>@postgres:5432/voicechat
+
+# Also set matching password for the Docker Compose postgres service
+POSTGRES_PASSWORD=<your-db-password>
 
 # Optional — leave empty for mock LLM responses
-LLM_API_KEY=sk-...
+LLM_API_KEY=<your-openai-api-key>
 LLM_BASE_URL=https://api.openai.com/v1
 LLM_MODEL=gpt-4o-mini
 ```
@@ -98,11 +101,16 @@ storage/pretrained_models/GPT-SoVITS/
 └── chinese-roberta-wwm-ext-large/
 ```
 
+`download_models.py` also configures the `G2PWModel` junction and `fast_langdetect`
+model path required by the GPT-SoVITS text preprocessing pipeline.
+
 ### 5. Run Database Migrations
+
+Run Alembic from the **project root** with the `-c` flag:
 
 ```bash
 conda activate voice-chat
-alembic upgrade head
+alembic -c backend/alembic/alembic.ini upgrade head
 ```
 
 ### 6. Start with Docker Compose
@@ -141,6 +149,11 @@ certbot --nginx -d yourdomain.com
 docker compose -f docker/docker-compose.yml restart frontend
 ```
 
+> **WebSocket over TLS:** The frontend automatically uses `wss://` when the page is served
+> over HTTPS. No additional configuration is needed on the frontend side. Ensure Nginx
+> proxies `/ws/` with `proxy_http_version 1.1` and the `Upgrade` / `Connection` headers
+> as shown in `docker/nginx/nginx.conf`.
+
 ---
 
 ## Importing Voice Models
@@ -165,7 +178,7 @@ docker compose -f docker/docker-compose.yml up -d --build backend frontend
 
 # Run any new migrations
 conda activate voice-chat
-alembic upgrade head
+alembic -c backend/alembic/alembic.ini upgrade head
 ```
 
 ---

@@ -189,20 +189,27 @@ stop.bat   # 或 .\stop.ps1
 voice-chat-assistant/
 ├── backend/                # FastAPI 应用
 │   ├── api/                # 路由处理器（auth / voices / conversations / ws）
+│   ├── core/               # 业务逻辑：STT / LLM / TTS 引擎、安全、流水线
 │   ├── models/             # SQLAlchemy ORM 模型
-│   ├── services/           # STT / LLM / TTS 引擎封装
+│   ├── schemas/            # Pydantic 请求/响应 DTO
+│   ├── utils/              # 文件工具、日志配置
 │   ├── alembic/            # 数据库迁移脚本
 │   └── main.py
 ├── frontend/               # React + Vite 应用
 │   └── src/
-│       ├── components/     # UI 组件
+│       ├── api/            # Axios API 客户端模块
+│       ├── components/     # 可复用 UI 组件
+│       ├── hooks/          # 自定义 Hooks（useWebSocket、useAudioRecorder、useAuth）
 │       ├── pages/          # 路由页面
-│       └── stores/         # Zustand 状态管理
+│       ├── store/          # Zustand 状态管理
+│       └── types/          # 共享 TypeScript 接口
 ├── docker/                 # Docker Compose + Nginx 配置
 ├── setup/                  # 安装脚本
 ├── docs/                   # 文档
 │   ├── API.md
 │   ├── DEPLOY.md
+│   ├── DEVELOPMENT.md
+│   ├── DOC_STANDARD.md
 │   └── VOICE_MODEL_IMPORT.md
 ├── storage/                # 运行时数据（已 gitignore）
 │   ├── voice_models/       # 导入的音色模型文件
@@ -236,8 +243,14 @@ voice-chat-assistant/
 |------|------|
 | [docs/API.md](docs/API.md) | REST API 与 WebSocket 接口参考 |
 | [docs/DEPLOY.md](docs/DEPLOY.md) | Linux 生产环境部署指南 |
+| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | 本地开发环境配置与工作流 |
 | [docs/VOICE_MODEL_IMPORT.md](docs/VOICE_MODEL_IMPORT.md) | GPT-SoVITS 音色导入指南 |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | 常见问题与修复方案汇总 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 系统架构图 |
+| [CHANGELOG.md](CHANGELOG.md) | 版本历史与发布说明 |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | 如何参与贡献 |
+| [SECURITY.md](SECURITY.md) | 安全策略与漏洞报告 |
+| [docs/DOC_STANDARD.md](docs/DOC_STANDARD.md) | 文档规范（所有文档变更须遵循） |
 
 ---
 

@@ -1,6 +1,7 @@
 # API Reference
 
-Base URL: `http://localhost:8000`
+> **Version:** v0.4 · **Base URL:** `http://localhost:8000`
+> For production deployments, replace the base URL with your domain over HTTPS.
 
 All authenticated endpoints require the header:
 
@@ -9,6 +10,9 @@ Authorization: Bearer <jwt_token>
 ```
 
 Interactive docs are available at **http://localhost:8000/docs** (Swagger UI).
+
+> **Rate limiting:** All REST endpoints are protected by `slowapi`. Exceeded limits
+> return `429 Too Many Requests`. WebSocket connections are limited at the connection level.
 
 ---
 
@@ -373,19 +377,25 @@ The JWT is passed as a query parameter because browser `WebSocket` does not supp
 |--------|-------------|-------------|
 | `transcript` | `{"type":"transcript","text":"..."}` | STT recognition result |
 | `llm_chunk` | `{"type":"llm_chunk","text":"..."}` | One LLM streaming token |
-| `audio_chunk` | `{"type":"audio_chunk","data":"<base64>"}` | One TTS audio chunk |
+| `audio_chunk` | `{"type":"audio_chunk","data":"<base64>","seq":0}` | One TTS audio chunk; `seq` is the 0-based sentence index used by the browser audio queue for in-order playback |
 | `done` | `{"type":"done","message_id":"..."}` | Turn complete, message persisted |
+| `title_updated` | `{"type":"title_updated","title":"..."}` | Auto-generated title (first turn only) |
 | `error` | `{"type":"error","message":"..."}` | Error during processing |
 
 #### Typical turn sequence
 
 ```
-Client  ──[binary audio]──▶  Server
-Server  ◀──transcript──────  Server  (after STT)
-Server  ◀──llm_chunk × N───  Server  (LLM streaming)
-Server  ◀──audio_chunk × N─  Server  (TTS streaming)
-Server  ◀──done────────────  Server  (turn finished)
+Client  ──[binary audio]──────▶  Server
+Server  ◀──transcript──────────  (after STT)
+Server  ◀──llm_chunk × N────────  (LLM streaming)
+Server  ◀──audio_chunk(seq=0)────  (TTS sentence 1)
+Server  ◀──audio_chunk(seq=1)────  (TTS sentence 2 …)
+Server  ◀──done─────────────────  (turn finished)
 ```
+
+Multiple `audio_chunk` messages are sent — one per synthesized sentence. The browser
+audio queue uses `seq` to guarantee in-order, non-overlapping playback even if chunks
+arrive out of order.
 
 ---
 

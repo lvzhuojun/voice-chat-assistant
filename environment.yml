@@ -8,6 +8,8 @@ dependencies:
   - python=3.10
   - nodejs>=20
   - pip
+  # lzma support (required for transformers on Windows; missing in some conda envs)
+  - conda-forge::liblzma
   # CUDA & PyTorch（RTX 5060 / Blackwell sm_120，cu128 兼容）
   - pytorch::pytorch=2.7.*
   - pytorch::torchvision

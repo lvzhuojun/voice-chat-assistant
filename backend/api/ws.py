@@ -6,7 +6,7 @@ WebSocket 对话路由
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Awaitable, Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,8 +36,8 @@ async def _try_generate_title(
     conversation_id: int,
     user_text: str,
     reply_text: str,
-    db: "AsyncSession",
-    send_json: "Callable",
+    db: AsyncSession,
+    send_json: Callable[[dict], Awaitable[None]],
 ) -> None:
     """
     首轮对话完成后尝试自动生成标题。

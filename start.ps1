@@ -42,22 +42,32 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
+# ── 动态检测 conda 根目录（可移植，不依赖固定安装路径）────────
+$CondaBase = (& conda info --base 2>$null | Out-String).Trim()
+if (-not $CondaBase) {
+    Write-Host "[ERROR] 未找到 conda，请先安装 Miniconda 或 Anaconda" -ForegroundColor Red
+    Read-Host "按 Enter 退出"
+    exit 1
+}
+$AlembicExe = Join-Path $CondaBase "envs\voice-chat\Scripts\alembic.exe"
+$ActivateBat = Join-Path $CondaBase "Scripts\activate.bat"
+
 # ── 第二步：运行数据库迁移 ────────────────────────────────────
 Write-Host "[INFO] 运行数据库迁移 (Alembic)..." -ForegroundColor Green
-& "D:\Anaconda3\envs\voice-chat\Scripts\alembic.exe" upgrade head
+& $AlembicExe upgrade head
 if ($LASTEXITCODE -ne 0) {
     Write-Host "[WARNING] Alembic 返回非零（可能已是最新版本），继续..." -ForegroundColor Yellow
 }
 
 # ── 第三步：启动后端 ──────────────────────────────────────────
 Write-Host "[INFO] 启动后端服务（端口 8000）..." -ForegroundColor Green
-Start-Process "cmd.exe" -ArgumentList "/k", "call D:\Anaconda3\Scripts\activate.bat D:\Anaconda3\envs\voice-chat && cd /d $ProjectRoot && python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload"
+Start-Process "cmd.exe" -ArgumentList "/k", "call `"$ActivateBat`" voice-chat && cd /d `"$ProjectRoot`" && python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload"
 
 Start-Sleep -Seconds 3
 
 # ── 第四步：启动前端 ──────────────────────────────────────────
 Write-Host "[INFO] 启动前端服务（端口 5173）..." -ForegroundColor Green
-Start-Process "cmd.exe" -ArgumentList "/k", "call D:\Anaconda3\Scripts\activate.bat D:\Anaconda3\envs\voice-chat && cd /d $ProjectRoot\frontend && npm run dev"
+Start-Process "cmd.exe" -ArgumentList "/k", "call `"$ActivateBat`" voice-chat && cd /d `"$ProjectRoot\frontend`" && npm run dev"
 
 Write-Host ""
 Write-Host "[SUCCESS] 所有服务启动中..." -ForegroundColor Green

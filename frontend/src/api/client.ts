@@ -33,7 +33,7 @@ client.interceptors.response.use(
       localStorage.removeItem('access_token')
       localStorage.removeItem('user')
       // 跳转到登录页（避免循环，只在非登录页时跳转）
-      if (!window.location.pathname.includes('/login')) {
+      if (window.location.pathname !== '/login') {
         window.location.href = '/login'
       }
     }

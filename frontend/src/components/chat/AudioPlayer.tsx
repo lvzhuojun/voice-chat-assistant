@@ -69,12 +69,18 @@ export default function AudioPlayer({ audioData }: AudioPlayerProps) {
     blobUrlsRef.current = urls
 
     // 预加载各块时长以计算总时长
+    // cancelled 标记：audioData 变化触发清理时取消回调，防止写入已失效的 refs
+    let cancelled = false
     let loaded = 0
     const durations = new Array<number>(urls.length).fill(0)
+    const tmpAudios: HTMLAudioElement[] = []
+
     urls.forEach((url, i) => {
       if (!url) { loaded++; return }
       const tmp = new Audio(url)
+      tmpAudios.push(tmp)
       tmp.onloadedmetadata = () => {
+        if (cancelled) return
         durations[i] = tmp.duration || 0
         loaded++
         if (loaded === urls.length) {
@@ -82,10 +88,17 @@ export default function AudioPlayer({ audioData }: AudioPlayerProps) {
           setTotalDuration(durations.reduce((a, b) => a + b, 0))
         }
       }
-      tmp.onerror = () => { loaded++; if (loaded === urls.length) chunkDurationsRef.current = durations }
+      tmp.onerror = () => {
+        if (cancelled) return
+        loaded++
+        if (loaded === urls.length) chunkDurationsRef.current = durations
+      }
     })
 
     return () => {
+      cancelled = true
+      // 清空 src 中断浏览器解码，释放资源
+      tmpAudios.forEach((t) => { t.src = '' })
       stopAudio()
       blobUrlsRef.current.forEach((u) => URL.revokeObjectURL(u))
       blobUrlsRef.current = []

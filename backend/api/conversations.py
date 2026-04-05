@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, delete, literal_column
+from sqlalchemy import select, func
 
 from backend.database import get_db
 from backend.models.user import User
@@ -16,6 +16,7 @@ from backend.models.conversation import Conversation
 from backend.models.message import Message
 from backend.schemas.schemas import (
     ConversationCreateRequest,
+    ConversationTitleUpdateRequest,
     ConversationResponse,
     ConversationWithCount,
     MessageResponse,
@@ -197,7 +198,7 @@ async def delete_conversation(
 @router.patch("/{conversation_id}/title", response_model=ConversationResponse)
 async def update_conversation_title(
     conversation_id: int,
-    title: str,
+    body: ConversationTitleUpdateRequest,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> ConversationResponse:
@@ -206,7 +207,7 @@ async def update_conversation_title(
 
     Args:
         conversation_id: 对话 ID
-        title: 新标题
+        body: 包含新标题的请求体
         current_user: 当前登录用户
         db: 数据库会话
 
@@ -226,7 +227,7 @@ async def update_conversation_title(
             detail="对话不存在或无权访问",
         )
 
-    conversation.title = title[:255]  # 限制长度
+    conversation.title = body.title
     conversation.updated_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(conversation)

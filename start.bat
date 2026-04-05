@@ -13,8 +13,14 @@ if not exist .env (
     copy .env.example .env
 )
 
-REM Activate conda environment
-call D:\Anaconda3\Scripts\activate.bat D:\Anaconda3\envs\voice-chat
+REM Detect conda base and activate voice-chat environment (portable)
+for /f "delims=" %%i in ('conda info --base 2^>nul') do set CONDA_BASE=%%i
+if not defined CONDA_BASE (
+    echo [ERROR] conda not found in PATH. Install Miniconda or Anaconda first.
+    pause
+    exit /b 1
+)
+call "%CONDA_BASE%\Scripts\activate.bat" voice-chat
 if %ERRORLEVEL% neq 0 (
     echo [ERROR] Cannot activate voice-chat conda env. Run setup\install.bat first.
     pause
@@ -58,13 +64,13 @@ if %ERRORLEVEL% neq 0 (
 
 REM Step 3: Start backend
 echo [INFO] Starting backend (port 8000)...
-start "VoiceChat Backend" cmd /k "call D:\Anaconda3\Scripts\activate.bat D:\Anaconda3\envs\voice-chat && cd /d D:\Lyuzhuojun\Project\Forsis\voice-chat-assistant && python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload"
+start "VoiceChat Backend" cmd /k "call "%CONDA_BASE%\Scripts\activate.bat" voice-chat && cd /d "%~dp0." && python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload"
 
 timeout /t 3 /nobreak >nul
 
 REM Step 4: Start frontend
 echo [INFO] Starting frontend (port 5173)...
-start "VoiceChat Frontend" cmd /k "call D:\Anaconda3\Scripts\activate.bat D:\Anaconda3\envs\voice-chat && cd /d D:\Lyuzhuojun\Project\Forsis\voice-chat-assistant\frontend && npm run dev"
+start "VoiceChat Frontend" cmd /k "call "%CONDA_BASE%\Scripts\activate.bat" voice-chat && cd /d "%~dp0frontend" && npm run dev"
 
 echo.
 echo [SUCCESS] All services starting...

@@ -56,7 +56,7 @@
    │  │      │                                            │  │
    │  │  ┌───▼────────────────┐                          │  │
    │  │  │  STT Engine        │  faster-whisper (CUDA)   │  │
-   │  │  │  WebM → WAV → text │                          │  │
+   │  │  │  WebM → WAV → text │  asyncio.to_thread ①    │  │
    │  │  └───┬────────────────┘                          │  │
    │  │      │ transcript text                            │  │
    │  │  ┌───▼────────────────┐                          │  │
@@ -67,6 +67,7 @@
    │  │  ┌───▼────────────────┐                          │  │
    │  │  │  TTS Engine        │  GPT-SoVITS v2 (CUDA)   │  │
    │  │  │  text → audio      │  LRU cache (max 3)       │  │
+   │  │  │                    │  asyncio.to_thread ①    │  │
    │  │  └───┬────────────────┘                          │  │
    │  │      │ WAV chunks                                 │  │
    │  └──────┼───────────────────────────────────────────┘  │
@@ -83,6 +84,11 @@
    │  └────────────┘  └───────────────┘  └──────────────┘  │
    └───────────────────────────────────────────────────────┘
 ```
+
+> **① Thread pool offloading** — Both STT (FFmpeg subprocess + Whisper inference) and TTS
+> (GPT-SoVITS GPU inference) are blocking operations that take 1–10 seconds each. They are
+> executed via `asyncio.to_thread()` so the FastAPI event loop is never blocked. Other
+> WebSocket connections remain responsive while a pipeline is running.
 
 ---
 
