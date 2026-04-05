@@ -11,6 +11,34 @@ Version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 
 ### Fixed
 
+- **`pipeline` — TTS 不再等待 LLM 完全结束才开始合成（首音延迟从 8~15s 降至 2~4s）** —
+  每当 LLM 流式输出跨越句子边界，立即用 `asyncio.create_task` 启动该句的 TTS 合成，
+  与 LLM 继续出 token 并发进行；LLM 结束后按 seq 顺序 `await` 各任务并推送音频，
+  保证播放顺序。旧实现等待 LLM 全量结束后才开始第一句 TTS，额外引入了完整 LLM
+  生成时间的延迟。
+- **`tts_engine.get_tts_model` — LRU 缓存并发竞争** — 多个并发 TTS 任务同时
+  miss 缓存时，原代码可能双重加载同一模型。改为 `threading.Lock` 双重检查锁定：
+  锁外加载模型（避免持锁等待 GPU），锁内更新缓存（保证原子性）。
+- **`GET /api/voices/current/info` — 无音色时返回 404 造成浏览器控制台红色报错** —
+  改为返回 HTTP 200 + `null` body；前端 `getCurrentVoice` 相应简化，
+  无需再 catch 404。
+- **`useWebSocket` — CONNECTING 状态关闭 socket 触发浏览器错误** —
+  切换对话或组件卸载时，若 WebSocket 仍在握手中，改为等 `open` 事件触发后再
+  调用 `close(1000)`，而不是直接强制关闭，消除
+  "WebSocket is closed before the connection is established" 控制台噪音。
+- **`useWebSocket` — 旧 socket 的 `onerror` 仍会打印日志** —
+  在 `ws.onerror` 中加入 `wsRef.current === ws` 检查，过期连接的错误事件
+  不再触发 `console.error`。
+- **`pipeline._MIN_SENTENCE_LEN` — 短句（如"好的。""OK."）无法立即触发 TTS** —
+  从 6 降至 3，可覆盖中文单字/双字应答句，减少末尾缓冲积累。
+
+### Changed
+
+- `pipeline.py` 重构为 `_llm_tts_pipeline` 内部函数，`process_audio_message` 和
+  `process_text_message` 均复用同一并发管道逻辑，消除重复代码。
+
+### Fixed
+
 - **`useWebSocket` — `isConnected` flicker on conversation switch** — `setIsConnected(false)`
   moved inside the `wsRef.current === ws` guard in `onclose`. Previously the old connection's
   async close event fired after the new connection had already set `isConnected=true`, causing

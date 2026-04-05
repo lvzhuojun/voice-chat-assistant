@@ -194,15 +194,20 @@ List all voice models belonging to the current user. **Requires auth.**
 
 ### GET /api/voices/current/info
 
-Get the voice currently selected by the user (read from Redis). Falls back to the most recently imported voice if none is selected. **Requires auth.**
+Get the voice currently selected by the user (read from Redis). Falls back to the most recently
+imported voice if none is explicitly selected. **Requires auth.**
 
-**Response** `200 OK`: same shape as a single item in `GET /api/voices`.
+**Response** `200 OK`:
 
-**Error responses:**
+- Voice object (same shape as a single item in `GET /api/voices`) when a voice is available.
+- `null` when the user has no imported voices.
 
-| Status | Condition |
-|--------|-----------|
-| `404 Not Found` | User has no imported voices |
+```json
+null
+```
+
+> **Note:** This endpoint never returns `404`. Callers should check whether the response body
+> is `null` to determine if the user needs to import a voice.
 
 ---
 

@@ -8,6 +8,7 @@ import asyncio
 import io
 import sys
 import tempfile
+import threading
 from pathlib import Path
 from collections import OrderedDict
 from typing import Optional
@@ -24,6 +25,8 @@ MAX_CACHED_MODELS = 3
 # LRU 缓存：OrderedDict，key = voice_id，value = TTS 实例
 # 使用 OrderedDict 实现 LRU（最近最少使用淘汰）
 _model_cache: OrderedDict[str, object] = OrderedDict()
+# 并发 TTS 任务时保护缓存读写的线程锁
+_model_cache_lock = threading.Lock()
 
 
 def _ensure_gptsovits_in_path() -> bool:
@@ -143,12 +146,12 @@ def _load_tts_model(
 def get_tts_model(voice_id: str, model_dir: Path) -> Optional[object]:
     """
     获取 TTS 模型（带 LRU 缓存，最多缓存 3 个）。
+    使用 threading.Lock 保证并发 TTS 任务下缓存操作的线程安全。
 
     缓存策略：
     - 命中缓存：将该 voice_id 移到末尾（最近使用），直接返回
-    - 未命中：加载新模型
+    - 未命中：锁外加载模型（避免长时间持锁），加载完成后再入缓存
       - 若缓存已满（3个）：淘汰最早使用的（OrderedDict 头部）
-      - 加载成功后存入缓存
 
     Args:
         voice_id: 音色 UUID
@@ -157,30 +160,30 @@ def get_tts_model(voice_id: str, model_dir: Path) -> Optional[object]:
     Returns:
         TTS 实例，失败返回 None
     """
-    # 命中缓存
-    if voice_id in _model_cache:
-        # 移到末尾（标记为最近使用）
-        _model_cache.move_to_end(voice_id)
-        logger.debug(f"TTS 模型缓存命中：{voice_id}")
-        return _model_cache[voice_id]
+    with _model_cache_lock:
+        if voice_id in _model_cache:
+            _model_cache.move_to_end(voice_id)
+            logger.debug(f"TTS 模型缓存命中：{voice_id}")
+            return _model_cache[voice_id]
 
-    # 未命中，加载新模型
+    # 未命中：在锁外加载（GPT-SoVITS 加载耗时较长，不能持锁等待）
     logger.info(f"TTS 模型缓存未命中，开始加载：{voice_id}")
-
-    # 缓存已满，淘汰最旧的
-    if len(_model_cache) >= MAX_CACHED_MODELS:
-        evicted_id, _ = _model_cache.popitem(last=False)  # 弹出最旧的（头部）
-        logger.info(f"TTS 模型缓存已满，淘汰：{evicted_id}（当前缓存数：{len(_model_cache)}）")
-
-    # 加载模型
     tts = _load_tts_model(voice_id, model_dir)
     if tts is None:
         return None
 
-    # 存入缓存
-    _model_cache[voice_id] = tts
-    logger.info(f"TTS 模型已缓存：{voice_id}（当前缓存数：{len(_model_cache)}）")
-    return tts
+    with _model_cache_lock:
+        # 再次检查（避免两个线程同时 miss 后双重加载）
+        if voice_id in _model_cache:
+            _model_cache.move_to_end(voice_id)
+            return _model_cache[voice_id]
+        # 缓存已满，淘汰最旧的
+        if len(_model_cache) >= MAX_CACHED_MODELS:
+            evicted_id, _ = _model_cache.popitem(last=False)
+            logger.info(f"TTS 模型缓存已满，淘汰：{evicted_id}")
+        _model_cache[voice_id] = tts
+        logger.info(f"TTS 模型已缓存：{voice_id}（当前缓存数：{len(_model_cache)}）")
+        return tts
 
 
 async def synthesize_speech(

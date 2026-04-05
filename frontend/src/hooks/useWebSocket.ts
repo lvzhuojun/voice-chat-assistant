@@ -226,7 +226,11 @@ export function useWebSocket({ conversationId }: UseWebSocketProps): UseWebSocke
     }
 
     ws.onerror = (err) => {
-      console.error('WebSocket 错误:', err)
+      // 仅在此 ws 仍是活跃连接时打印错误，避免切换对话后旧连接的
+      // "closed before connection is established" 噪音日志
+      if (wsRef.current === ws) {
+        console.error('WebSocket 错误:', err)
+      }
     }
   }, [conversationId, token, handleMessage])
 
@@ -236,23 +240,39 @@ export function useWebSocket({ conversationId }: UseWebSocketProps): UseWebSocke
     clearAudioQueue()
     currentAudioChunksRef.current = []
 
-    if (wsRef.current) {
-      wsRef.current.close(1000)
-      wsRef.current = null
-    }
     if (reconnectTimerRef.current) {
       clearTimeout(reconnectTimerRef.current)
     }
     reconnectCountRef.current = 0
+
+    // 安全关闭旧连接：CONNECTING 状态下等握手完成再关，避免触发
+    // "WebSocket is closed before the connection is established" 浏览器错误
+    const oldWs = wsRef.current
+    wsRef.current = null
+    if (oldWs) {
+      if (oldWs.readyState === WebSocket.CONNECTING) {
+        oldWs.addEventListener('open', () => oldWs.close(1000), { once: true })
+      } else {
+        oldWs.close(1000)
+      }
+    }
 
     if (conversationId && token) {
       connect()
     }
 
     return () => {
-      wsRef.current?.close(1000)
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current)
       clearAudioQueue()
+      const ws = wsRef.current
+      wsRef.current = null
+      if (ws) {
+        if (ws.readyState === WebSocket.CONNECTING) {
+          ws.addEventListener('open', () => ws.close(1000), { once: true })
+        } else {
+          ws.close(1000)
+        }
+      }
     }
   }, [conversationId])  // eslint-disable-line react-hooks/exhaustive-deps
 

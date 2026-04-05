@@ -8,6 +8,7 @@ import tempfile
 from pathlib import Path
 from typing import Annotated
 
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, status
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -200,11 +201,11 @@ async def list_voices(
     return [VoiceModelListItem.model_validate(v) for v in voices]
 
 
-@router.get("/current/info", response_model=VoiceModelListItem)
+@router.get("/current/info", response_model=Optional[VoiceModelListItem])
 async def get_current_voice(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
-) -> VoiceModelListItem:
+) -> Optional[VoiceModelListItem]:
     """
     获取当前用户选择的音色信息。
     从 Redis 读取 voice_id，再查询数据库。
@@ -245,10 +246,7 @@ async def get_current_voice(
         voice = result.scalar_one_or_none()
 
     if not voice:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="没有可用的音色，请先导入音色",
-        )
+        return None
 
     return VoiceModelListItem.model_validate(voice)
 
