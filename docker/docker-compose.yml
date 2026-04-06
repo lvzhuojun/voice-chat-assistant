@@ -66,6 +66,8 @@ services:
       - ../storage:/app/storage
       - ../GPT_SoVITS:/app/GPT_SoVITS:ro
       - ../CosyVoice:/app/CosyVoice:ro
+      # Whisper 模型缓存持久化（避免每次容器重启重新下载）
+      - whisper_cache:/root/.cache/huggingface
     ports:
       - "8000:8000"
     deploy:
@@ -92,3 +94,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  whisper_cache:

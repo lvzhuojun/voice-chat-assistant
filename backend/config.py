@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     whisper_device: str = "cuda"
 
     # ── TTS（GPT-SoVITS）─────────────────────────────────────
-    gptsovits_dir: str = "./GPT-SoVITS"
+    gptsovits_dir: str = "./GPT_SoVITS"
     voice_models_dir: str = "./storage/voice_models"
     pretrained_models_dir: str = "./storage/pretrained_models/GPT-SoVITS"
     storage_dir: str = "./storage"
