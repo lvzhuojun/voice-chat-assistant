@@ -23,6 +23,9 @@ DEFAULT_SYSTEM_PROMPT = (
 # 每个对话保留的最大轮次（1轮 = 1条用户消息 + 1条助手回复）
 MAX_CONTEXT_ROUNDS = 10
 
+# LLM 错误标记（特殊前缀，pipeline 检测到后终止 TTS，避免合成错误文字）
+LLM_ERROR_MARKER = "\x00LLM_ERR\x00"
+
 
 # Redis 客户端（懒加载）
 _redis_client = None
@@ -262,13 +265,14 @@ async def stream_chat(
                 yield delta.content
 
     except Exception as e:
-        error_msg = f"[LLM 请求失败：{type(e).__name__}] 请检查 API 配置"
-        logger.error(f"LLM 流式请求失败：{e}")
-        yield error_msg
-        full_reply.append(error_msg)
+        error_msg = f"LLM 请求失败（{type(e).__name__}），请检查 API 配置"
+        logger.error(f"LLM 流式请求失败：{e}", exc_info=True)
+        # 使用特殊标记前缀，让 pipeline 识别后终止 TTS，不将错误存入上下文
+        yield LLM_ERROR_MARKER + error_msg
+        return  # full_reply 为空，finally 不会保存错误到上下文
 
     finally:
-        # 无论成功失败，都保存上下文（保留对话连续性）
+        # 仅在有实际回复内容时保存上下文（错误时 full_reply 为空，跳过）
         if full_reply:
             assistant_reply = "".join(full_reply)
             new_context = [

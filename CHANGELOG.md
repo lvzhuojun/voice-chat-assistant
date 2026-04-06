@@ -27,10 +27,52 @@ Version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html
     音色卡片按引擎类型显示对应徽章（GPT-SoVITS v2 / CosyVoice 2）
   - `frontend/src/api/voices.ts`：`importVoice` 新增 `engine` 参数
 
+### Fixed
+
+- **`ws.py` — `conversation.updated_at` 修改从未持久化（SQLAlchemy detached object）** —
+  `ws.py` 在 Session 1 中加载 `conversation` 对象后关闭会话，随后在 Session 2 中修改
+  `conversation.updated_at` 并 commit，但该对象已处于 detached 状态，修改被静默丢弃。
+  改为直接执行 `UPDATE` SQL 语句：
+  `update(Conversation).where(...).values(updated_at=datetime.now(timezone.utc))`。
+- **`ws.py` — `_try_generate_title` 生成的标题从未写入数据库** — 同 detached object 问题：
+  标题通过 WebSocket 推送给前端（侧边栏暂时显示正确），但页面刷新后恢复为"新对话"。
+  函数签名从接收 ORM 对象改为接收 `conversation_id: int, current_title: str`，
+  内部使用 `UPDATE` 语句持久化标题。
+- **`voices.py` / `ws.py` — CosyVoice 2 音色的 `model_dir` 解析错误** — 原代码使用
+  `Path(voice.gpt_model_path).parent`，而 CosyVoice 2 音色的 `gpt_model_path` 为空字符串，
+  导致 `model_dir = Path(".")`，TTS 推理找不到 `reference.wav`。
+  改为 `Path(voice.reference_wav_path).parent`，对两种引擎均正确。
+- **`llm_client.py` / `pipeline.py` — LLM 错误文本被 TTS 合成并存入对话上下文** —
+  LLM 请求失败时，错误提示文字（"LLM 请求失败…"）会被 TTS 朗读，同时作为 AI 回复
+  存入 Redis 上下文，污染后续轮次的对话记忆。新增 `LLM_ERROR_MARKER = "\x00LLM_ERR\x00"`
+  哨兵前缀：`stream_chat` 在 `except` 块中 `yield LLM_ERROR_MARKER + error_msg` 后立即
+  `return`（`full_reply` 保持为空，`finally` 不保存上下文）；`pipeline` 检测到前缀后
+  取消所有待完成 TTS 任务并向客户端发送 error 消息，不进入 TTS 流程。
+- **`stt_engine.py` — Whisper 模型并发重复加载** — 多个并发 STT 任务同时 miss 缓存时，
+  原代码会触发多次 GPU 模型加载。新增 `threading.Lock` 双重检查锁定：
+  锁外检查、锁内二次确认后赋值，保证全局只加载一次。
+- **`chatStore.ts` — 切换/删除对话后旧消息残留** — `setActiveConversation` 未清空
+  `messages`，导致切换对话瞬间仍显示上一个对话的消息列表。
+  在 setter 中补充 `messages: []`。
+- **`useAudioRecorder.ts` — 录音启动失败时 AudioContext/媒体轨道泄漏** —
+  `startRecording` 的 `catch` 块缺少清理逻辑，异常后 AudioContext 和 MediaStream 轨道
+  持续占用资源；补充 `cancelAnimationFrame`、`audioContext.close()`、
+  `stream.getTracks().forEach(t => t.stop())` 及状态重置。
+- **`database.py` — `get_db` 返回类型标注错误** — 函数是 `AsyncGenerator`，但返回类型
+  标注为 `AsyncSession`，导致静态分析报错；改为 `-> AsyncGenerator[AsyncSession, None]`。
+- **`main.py` — 全局 500 响应暴露 `error_type` 字段** — 错误响应中包含
+  `"error_type": type(exc).__name__`，可向客户端泄露内部异常类名；已移除该字段。
+- **`ChatPage.tsx` — 文字输入框无长度限制** — 用户可提交超长文本（数万字符），
+  导致 LLM 请求过大或 Token 超限；新增 `maxLength={500}`。
+- **`ChatPage.tsx` — `handleRecordStart` 未处理新建对话失败** — `handleNewConversation`
+  异步失败时不抛出异常，录音仍会继续，导致音频发送到不存在的 conversationId；
+  加入 `try/catch` 并在失败时提前返回。
+
 ### Changed
 
 - `backend/api/ws.py`：`voice_model_dir` 改为从 `reference_wav_path` 推导
   （原来用 `gpt_model_path.parent`，CosyVoice 2 音色的该字段为空）
+- `main.py`：应用关闭时调用 `clear_speaker_cache()` 释放 CosyVoice speaker embedding 缓存
 - `docs/API.md`：`POST /api/voices/import` 文档补充 `engine` 参数和 CosyVoice 2 ZIP 格式说明；
   所有音色响应体增加 `tts_engine` 字段说明
 

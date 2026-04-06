@@ -9,6 +9,7 @@ import io
 import sys
 import tempfile
 import subprocess
+import threading
 from pathlib import Path
 from typing import Optional
 
@@ -38,12 +39,14 @@ def _find_ffmpeg() -> str:
 
 # 全局 WhisperModel 实例（单例，避免重复加载）
 _whisper_model = None
+_whisper_load_lock = threading.Lock()
 
 
 def get_whisper_model():
     """
-    获取 WhisperModel 单例。
+    获取 WhisperModel 单例（线程安全）。
     首次调用时加载模型，后续直接返回缓存实例。
+    使用双重检查锁定（double-checked locking）避免并发时重复加载。
 
     Returns:
         WhisperModel: faster-whisper 模型实例，加载失败返回 None
@@ -53,35 +56,40 @@ def get_whisper_model():
     if _whisper_model is not None:
         return _whisper_model
 
-    try:
-        from faster_whisper import WhisperModel
+    with _whisper_load_lock:
+        # 再次检查：防止其他线程在等待锁期间已完成加载
+        if _whisper_model is not None:
+            return _whisper_model
 
-        model_size = settings.whisper_model_size
-        device = settings.whisper_device
+        try:
+            from faster_whisper import WhisperModel
 
-        logger.info(f"加载 Whisper 模型：{model_size}，设备：{device}")
+            model_size = settings.whisper_model_size
+            device = settings.whisper_device
 
-        # compute_type:
-        # - CUDA + float16：RTX 系列推荐，速度快
-        # - CUDA + int8_float16：显存不足时备选
-        # - cpu + int8：CPU 推理
-        compute_type = "float16" if device == "cuda" else "int8"
+            logger.info(f"加载 Whisper 模型：{model_size}，设备：{device}")
 
-        _whisper_model = WhisperModel(
-            model_size,
-            device=device,
-            compute_type=compute_type,
-            # 下载/加载模型的路径，使用 HuggingFace 缓存默认位置
-            download_root=None,
-        )
+            # compute_type:
+            # - CUDA + float16：RTX 系列推荐，速度快
+            # - CUDA + int8_float16：显存不足时备选
+            # - cpu + int8：CPU 推理
+            compute_type = "float16" if device == "cuda" else "int8"
 
-        logger.info(f"Whisper 模型加载成功：{model_size} on {device}")
-        return _whisper_model
+            _whisper_model = WhisperModel(
+                model_size,
+                device=device,
+                compute_type=compute_type,
+                # 下载/加载模型的路径，使用 HuggingFace 缓存默认位置
+                download_root=None,
+            )
 
-    except Exception as e:
-        logger.error(f"Whisper 模型加载失败：{e}")
-        logger.error("请检查：1. CUDA 是否可用  2. faster-whisper 是否安装")
-        return None
+            logger.info(f"Whisper 模型加载成功：{model_size} on {device}")
+            return _whisper_model
+
+        except Exception as e:
+            logger.error(f"Whisper 模型加载失败：{e}")
+            logger.error("请检查：1. CUDA 是否可用  2. faster-whisper 是否安装")
+            return None
 
 
 async def convert_audio_to_wav(audio_bytes: bytes, input_format: str = "webm") -> Optional[bytes]:

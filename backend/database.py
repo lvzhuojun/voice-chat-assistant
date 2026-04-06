@@ -3,6 +3,8 @@
 使用 SQLAlchemy 2.0 异步引擎 + Session 工厂
 """
 
+from typing import AsyncGenerator
+
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -47,7 +49,7 @@ class Base(DeclarativeBase):
     pass
 
 
-async def get_db() -> AsyncSession:
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """
     FastAPI 依赖注入：提供数据库 Session。
     使用 async with 确保 Session 正确关闭。

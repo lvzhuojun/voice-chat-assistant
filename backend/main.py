@@ -97,6 +97,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         logger.warning(f"TTS 缓存清理失败：{e}")
 
+    # 清理 CosyVoice speaker prompt 缓存
+    try:
+        from backend.core.tts_engine_cosyvoice import clear_speaker_cache
+        clear_speaker_cache()
+        logger.info("CosyVoice2 缓存已释放")
+    except Exception as e:
+        logger.warning(f"CosyVoice2 缓存清理失败：{e}")
+
     logger.info("Voice Chat Assistant 已关闭")
 
 
@@ -146,10 +154,7 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
     logger.error(f"未处理的异常：{exc}", exc_info=True)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={
-            "detail": "服务器内部错误",
-            "error_type": type(exc).__name__,
-        },
+        content={"detail": "服务器内部错误"},
     )
 
 # ── 注册路由 ──────────────────────────────────────────────────

@@ -150,7 +150,11 @@ export default function ChatPage() {
   // 开始录音
   const handleRecordStart = async () => {
     if (!activeConversationId) {
-      await handleNewConversation()
+      try {
+        await handleNewConversation()
+      } catch {
+        return  // 对话创建失败，不启动录音
+      }
     }
     await startRecording()
   }
@@ -447,6 +451,7 @@ export default function ChatPage() {
                 onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSendText()}
                 placeholder="输入消息…（Enter 发送）"
                 disabled={isProcessing || !activeConversationId}
+                maxLength={500}
                 className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-text-primary placeholder:text-text-muted text-sm focus:outline-none focus:border-brand-purple/60 focus:ring-1 focus:ring-brand-purple/40 transition-all duration-150 disabled:opacity-50"
                 autoFocus
               />

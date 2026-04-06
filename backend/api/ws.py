@@ -10,7 +10,7 @@ from typing import Callable, Awaitable, Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update
 
 from backend.database import AsyncSessionLocal
 from backend.models.conversation import Conversation
@@ -32,8 +32,8 @@ _redis = None
 
 
 async def _try_generate_title(
-    conversation: Conversation,
     conversation_id: int,
+    current_title: str,
     user_text: str,
     reply_text: str,
     db: AsyncSession,
@@ -42,10 +42,11 @@ async def _try_generate_title(
     """
     首轮对话完成后尝试自动生成标题。
     仅在对话标题为默认值且消息数恰好为 2（1用户+1AI）时触发。
+    使用 UPDATE 语句直接持久化标题，避免 detached object 问题。
     """
     try:
         # 只在首轮（2条消息）且标题未修改时生成
-        if conversation.title not in ("新对话", ""):
+        if current_title not in ("新对话", ""):
             return
         count_result = await db.execute(
             select(func.count(Message.id)).where(
@@ -57,7 +58,11 @@ async def _try_generate_title(
 
         new_title = await generate_title(user_text, reply_text)
         if new_title:
-            conversation.title = new_title[:255]
+            await db.execute(
+                update(Conversation)
+                .where(Conversation.id == conversation_id)
+                .values(title=new_title[:255])
+            )
             await db.commit()
             await send_json({"type": "title_updated", "title": new_title})
             logger.info(f"对话 {conversation_id} 标题自动生成：{new_title}")
@@ -268,8 +273,12 @@ async def websocket_chat(
                         await db.commit()
                         await db.refresh(assistant_msg)
 
-                        # 更新对话 updated_at
-                        conversation.updated_at = datetime.now(timezone.utc)
+                        # 更新对话 updated_at（用 UPDATE 语句，避免 detached object 问题）
+                        await db.execute(
+                            update(Conversation)
+                            .where(Conversation.id == conversation_id)
+                            .values(updated_at=datetime.now(timezone.utc))
+                        )
                         await db.commit()
 
                         await send_json({
@@ -279,7 +288,7 @@ async def websocket_chat(
 
                         # 首轮后自动生成标题
                         await _try_generate_title(
-                            conversation, conversation_id,
+                            conversation_id, conversation.title,
                             transcript, reply_text, db, send_json,
                         )
 
@@ -330,7 +339,12 @@ async def websocket_chat(
                             await db.commit()
                             await db.refresh(assistant_msg)
 
-                            conversation.updated_at = datetime.now(timezone.utc)
+                            # 更新对话 updated_at（用 UPDATE 语句，避免 detached object 问题）
+                            await db.execute(
+                                update(Conversation)
+                                .where(Conversation.id == conversation_id)
+                                .values(updated_at=datetime.now(timezone.utc))
+                            )
                             await db.commit()
 
                             await send_json({
@@ -340,7 +354,7 @@ async def websocket_chat(
 
                             # 首轮后自动生成标题
                             await _try_generate_title(
-                                conversation, conversation_id,
+                                conversation_id, conversation.title,
                                 content, reply_text, db, send_json,
                             )
                     else:

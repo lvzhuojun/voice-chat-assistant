@@ -53,6 +53,7 @@ export const useChatStore = create<ChatState>((set) => ({
       isProcessing: false,
       streamingText: '',
       pendingAudioChunks: [],
+      messages: [],
     }),
   setMessages: (messages) => set({ messages }),
   addMessage: (message) =>

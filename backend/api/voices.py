@@ -408,7 +408,9 @@ async def select_voice(
 
 
 @router.post("/{voice_db_id}/test")
+@limiter.limit("10/hour")
 async def test_voice(
+    request: Request,
     voice_db_id: int,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -420,6 +422,7 @@ async def test_voice(
     返回 audio/wav 格式的二进制音频数据。
 
     Args:
+        request: FastAPI Request 对象（限流器需要）
         voice_db_id: 音色数据库 ID
         current_user: 当前登录用户
         db: 数据库会话
@@ -441,17 +444,28 @@ async def test_voice(
             detail="音色不存在或无权访问",
         )
 
-    model_dir = Path(voice.gpt_model_path).parent
-
-    from backend.core.tts_engine import synthesize_speech
+    # 使用 reference_wav_path 确定模型目录（gpt_model_path 对 CosyVoice 为空）
+    model_dir = Path(voice.reference_wav_path).parent
 
     test_text = f"你好，我是{voice.voice_name}，这是一段测试语音。"
-    wav_bytes = await synthesize_speech(
-        text=test_text,
-        voice_id=voice.voice_id,
-        model_dir=model_dir,
-        language=voice.language,
-    )
+
+    # 按引擎类型路由到对应的 TTS 实现
+    if voice.tts_engine == "cosyvoice2":
+        from backend.core.tts_engine_cosyvoice import synthesize_speech_cosyvoice
+        wav_bytes = await synthesize_speech_cosyvoice(
+            text=test_text,
+            voice_id=voice.voice_id,
+            model_dir=model_dir,
+            language=voice.language,
+        )
+    else:
+        from backend.core.tts_engine import synthesize_speech
+        wav_bytes = await synthesize_speech(
+            text=test_text,
+            voice_id=voice.voice_id,
+            model_dir=model_dir,
+            language=voice.language,
+        )
 
     if wav_bytes is None:
         raise HTTPException(

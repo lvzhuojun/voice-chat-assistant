@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Callable, Awaitable, Optional
 
 from backend.core.stt_engine import transcribe_audio
-from backend.core.llm_client import stream_chat
+from backend.core.llm_client import stream_chat, LLM_ERROR_MARKER
 from backend.core.tts_engine import synthesize_speech
 from backend.core.tts_engine_cosyvoice import synthesize_speech_cosyvoice
 from backend.utils.logger import get_logger
@@ -227,6 +227,15 @@ async def _llm_tts_pipeline(
             user_message=user_message,
             conversation_id=conversation_id,
         ):
+            # LLM 错误标记：取消所有待完成的 TTS 任务，向客户端发送错误，提前返回
+            if chunk.startswith(LLM_ERROR_MARKER):
+                error_text = chunk[len(LLM_ERROR_MARKER):]
+                for _, t in tts_tasks:
+                    if not t.done():
+                        t.cancel()
+                await send_message({"type": "error", "message": error_text})
+                return None, 0
+
             full_reply_parts.append(chunk)
             sentence_buffer += chunk
             await send_message({"type": "llm_chunk", "text": chunk})

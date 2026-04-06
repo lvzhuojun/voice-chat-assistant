@@ -188,9 +188,21 @@ export function useAudioRecorder(
       recorder.start(250)
       setRecordingState('recording')
     } catch (err: unknown) {
+      // 清理部分初始化的音频资源，避免泄漏
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current)
+        animFrameRef.current = null
+      }
+      audioContextRef.current?.close()
+      audioContextRef.current = null
+      analyserRef.current = null
+      streamRef.current?.getTracks().forEach((t) => t.stop())
+      streamRef.current = null
+      setAudioLevel(0)
+
       const msg =
         err instanceof Error
-          ? err.message.includes('Permission denied')
+          ? err.message.includes('Permission denied') || err.message.includes('NotAllowedError')
             ? '麦克风权限被拒绝，请在浏览器设置中允许麦克风访问'
             : err.message
           : '无法访问麦克风'
