@@ -55,3 +55,6 @@ backend/alembic/versions/*.pyc
 
 # Docker
 docker/.env
+
+# 个人本地笔记（不入库）
+docs/SERVER_REQUIREMENTS.md
