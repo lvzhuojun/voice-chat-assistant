@@ -177,10 +177,11 @@ def run_tests():
             check("获取消息列表 (200)", r.status_code == 200)
             check("新对话消息为空", r.json() == [])
 
-        # 更新标题
+        # 更新标题（后端接收 JSON body，不是 query param）
+        # Update title (backend expects a JSON body, not a query parameter)
         if conv_id:
             r = client.patch(f"/api/conversations/{conv_id}/title",
-                             headers=auth, params={"title": "已更新标题"})
+                             headers=auth, json={"title": "已更新标题"})
             check("更新对话标题 (200)", r.status_code == 200)
             if r.status_code == 200:
                 check("标题已更新", r.json().get("title") == "已更新标题")
