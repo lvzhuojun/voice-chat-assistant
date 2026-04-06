@@ -54,7 +54,7 @@ $ActivateBat = Join-Path $CondaBase "Scripts\activate.bat"
 
 # ── 第二步：运行数据库迁移 ────────────────────────────────────
 Write-Host "[INFO] 运行数据库迁移 (Alembic)..." -ForegroundColor Green
-& $AlembicExe upgrade head
+& $AlembicExe -c "$ProjectRoot\backend\alembic\alembic.ini" upgrade head
 if ($LASTEXITCODE -ne 0) {
     Write-Host "[WARNING] Alembic 返回非零（可能已是最新版本），继续..." -ForegroundColor Yellow
 }
