@@ -132,8 +132,10 @@ export default function ChatPage() {
       addConversation(res.data)
       setActiveConversation(res.data.id)
       setIsSidebarOpen(false)
-    } catch {
-      console.error('新建对话失败')
+    } catch (err) {
+      console.error('新建对话失败', err)
+      setNotice({ msg: '新建对话失败，请重试', type: 'error' })
+      throw err  // 让 handleRecordStart 的 catch 能终止录音 / Re-throw so handleRecordStart can abort recording
     }
   }
 

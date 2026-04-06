@@ -270,7 +270,7 @@ export default function VoicePage() {
     onDrop: (files) => files[0] && handleUpload(files[0]),
     accept: { 'application/zip': ['.zip'] },
     multiple: false,
-    maxSize: 2 * 1024 * 1024 * 1024, // 2GB
+    maxSize: 500 * 1024 * 1024, // 500MB — 与后端 MAX_UPLOAD_SIZE_MB 一致，避免前端通过后端拒绝 / Matches backend MAX_UPLOAD_SIZE_MB to reject oversized files client-side
   })
 
   // 选择音色 / Select a voice model

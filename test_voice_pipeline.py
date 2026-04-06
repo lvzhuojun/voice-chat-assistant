@@ -1,18 +1,34 @@
 # -*- coding: utf-8 -*-
-"""Test full voice chat pipeline: WebSocket text -> LLM -> TTS"""
-import sys, io
+"""
+全链路 WebSocket 语音管道集成测试
+Full voice chat pipeline integration test: WebSocket text -> LLM -> TTS
+
+用法 / Usage:
+    TEST_EMAIL=your@email.com TEST_PASSWORD=YourPass python test_voice_pipeline.py
+"""
+import sys, io, os
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
 import asyncio, json, httpx, websockets
 
 sys.path.insert(0, '.')
 
+# 从环境变量读取测试账号凭据，避免硬编码敏感信息
+# Read test account credentials from environment variables to avoid hardcoding secrets
+TEST_EMAIL = os.environ.get("TEST_EMAIL", "")
+TEST_PASSWORD = os.environ.get("TEST_PASSWORD", "")
+
+if not TEST_EMAIL or not TEST_PASSWORD:
+    print("[ERROR] 请通过环境变量设置测试账号：")
+    print("  TEST_EMAIL=your@email.com TEST_PASSWORD=YourPass python test_voice_pipeline.py")
+    sys.exit(1)
+
 BASE = 'http://127.0.0.1:8000'
 WS_BASE = 'ws://127.0.0.1:8000'
 
 def run():
     c = httpx.Client(base_url=BASE, timeout=15)
-    r = c.post('/api/auth/login', json={'email': 'lzj2729033776@gmail.com', 'password': 'TestVoice1'})
+    r = c.post('/api/auth/login', json={'email': TEST_EMAIL, 'password': TEST_PASSWORD})
     print(f'Login: {r.status_code}')
     d = r.json()
     token = d['access_token']
@@ -43,7 +59,7 @@ def run():
     # Verify DB persistence
     c2 = httpx.Client(base_url=BASE, timeout=10)
     t2 = c2.post('/api/auth/login',
-                 json={'email': 'lzj2729033776@gmail.com', 'password': 'TestVoice1'}).json()['access_token']
+                 json={'email': TEST_EMAIL, 'password': TEST_PASSWORD}).json()['access_token']
     msgs_db = c2.get(f'/api/conversations/{conv_id}/messages',
                      headers={'Authorization': f'Bearer {t2}'}).json()
     print(f'\nDB messages count: {len(msgs_db)}')
