@@ -1,4 +1,5 @@
 """初始数据库迁移：创建所有基础表
+Initial database migration: create all base tables.
 
 Revision ID: 001
 Revises:
@@ -18,9 +19,12 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    """创建所有表。"""
+    """
+    创建所有表。
+    Create all application tables.
+    """
 
-    # ── users 表 ──────────────────────────────────────────────
+    # ── users 表 / users table ────────────────────────────────
     op.create_table(
         "users",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
@@ -39,7 +43,7 @@ def upgrade() -> None:
     op.create_index(op.f("ix_users_id"), "users", ["id"], unique=False)
     op.create_index(op.f("ix_users_email"), "users", ["email"], unique=True)
 
-    # ── voice_models 表 ────────────────────────────────────────
+    # ── voice_models 表 / voice_models table ──────────────────
     op.create_table(
         "voice_models",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
@@ -65,7 +69,7 @@ def upgrade() -> None:
     op.create_index(op.f("ix_voice_models_user_id"), "voice_models", ["user_id"], unique=False)
     op.create_index(op.f("ix_voice_models_voice_id"), "voice_models", ["voice_id"], unique=False)
 
-    # ── conversations 表 ───────────────────────────────────────
+    # ── conversations 表 / conversations table ────────────────
     op.create_table(
         "conversations",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
@@ -91,7 +95,7 @@ def upgrade() -> None:
     op.create_index(op.f("ix_conversations_id"), "conversations", ["id"], unique=False)
     op.create_index(op.f("ix_conversations_user_id"), "conversations", ["user_id"], unique=False)
 
-    # ── messages 表 ───────────────────────────────────────────
+    # ── messages 表 / messages table ──────────────────────────
     op.create_table(
         "messages",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
@@ -118,7 +122,10 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """删除所有表（回滚）。"""
+    """
+    删除所有表（回滚）。
+    Drop all application tables (rollback).
+    """
     op.drop_index(op.f("ix_messages_conversation_id"), table_name="messages")
     op.drop_index(op.f("ix_messages_id"), table_name="messages")
     op.drop_table("messages")

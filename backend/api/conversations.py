@@ -1,6 +1,8 @@
 """
 对话历史管理 API 路由
+Conversation history management API routes.
 提供对话的 CRUD 和消息查询接口
+Provides CRUD operations for conversations and message retrieval endpoints.
 """
 
 from typing import Annotated
@@ -38,16 +40,19 @@ async def list_conversations(
 ) -> list[ConversationWithCount]:
     """
     获取当前用户的对话列表（按更新时间倒序）。
+    Retrieve the current user's conversation list (ordered by update time, descending).
     同时返回每个对话的消息数量。
+    Also returns the message count for each conversation.
 
     Args:
-        current_user: 当前登录用户
-        db: 数据库会话
+        current_user: 当前登录用户 / Currently authenticated user
+        db: 数据库会话 / Database session
 
     Returns:
-        list[ConversationWithCount]: 对话列表（含消息数）
+        list[ConversationWithCount]: 对话列表（含消息数） / Conversation list with message counts
     """
     # 单次查询：LEFT JOIN 消息数子查询，避免 N+1 问题
+    # Single query: LEFT JOIN with a message-count subquery to avoid the N+1 problem
     msg_count_subq = (
         select(
             Message.conversation_id,
@@ -87,14 +92,15 @@ async def create_conversation(
 ) -> ConversationResponse:
     """
     创建新对话。
+    Create a new conversation.
 
     Args:
-        request: 创建请求（title、voice_model_id 可选）
-        current_user: 当前登录用户
-        db: 数据库会话
+        request: 创建请求（title、voice_model_id 可选） / Creation request (title and voice_model_id are optional)
+        current_user: 当前登录用户 / Currently authenticated user
+        db: 数据库会话 / Database session
 
     Returns:
-        ConversationResponse: 创建的对话信息
+        ConversationResponse: 创建的对话信息 / Information about the newly created conversation
     """
     conversation = Conversation(
         user_id=current_user.id,
@@ -119,16 +125,17 @@ async def get_conversation_messages(
 ) -> list[MessageResponse]:
     """
     获取指定对话的消息列表（按时间升序）。
+    Retrieve the message list for a specific conversation (ordered by time, ascending).
 
     Args:
-        conversation_id: 对话 ID
-        current_user: 当前登录用户
-        db: 数据库会话
+        conversation_id: 对话 ID / Conversation ID
+        current_user: 当前登录用户 / Currently authenticated user
+        db: 数据库会话 / Database session
 
     Returns:
-        list[MessageResponse]: 消息列表
+        list[MessageResponse]: 消息列表 / List of messages
     """
-    # 验证对话归属
+    # 验证对话归属 / Verify that the conversation belongs to the current user
     conv_result = await db.execute(
         select(Conversation).where(
             Conversation.id == conversation_id,
@@ -142,7 +149,7 @@ async def get_conversation_messages(
             detail="对话不存在或无权访问",
         )
 
-    # 获取消息列表（按时间升序）
+    # 获取消息列表（按时间升序） / Fetch messages ordered by creation time ascending
     msg_result = await db.execute(
         select(Message)
         .where(Message.conversation_id == conversation_id)
@@ -160,17 +167,19 @@ async def delete_conversation(
 ) -> SimpleMessageResponse:
     """
     删除对话及其所有消息。
+    Delete a conversation and all of its messages.
     同时清除 Redis 中的 LLM 上下文缓存。
+    Also clears the LLM context cache stored in Redis.
 
     Args:
-        conversation_id: 对话 ID
-        current_user: 当前登录用户
-        db: 数据库会话
+        conversation_id: 对话 ID / Conversation ID
+        current_user: 当前登录用户 / Currently authenticated user
+        db: 数据库会话 / Database session
 
     Returns:
-        SimpleMessageResponse: 操作结果
+        SimpleMessageResponse: 操作结果 / Operation result
     """
-    # 验证对话归属
+    # 验证对话归属 / Verify that the conversation belongs to the current user
     conv_result = await db.execute(
         select(Conversation).where(
             Conversation.id == conversation_id,
@@ -184,10 +193,11 @@ async def delete_conversation(
             detail="对话不存在或无权访问",
         )
 
-    # 清除 LLM 上下文缓存（Redis）
+    # 清除 LLM 上下文缓存（Redis） / Clear the LLM context cache from Redis
     await clear_conversation_context(conversation_id)
 
     # 删除对话（级联删除消息，通过 ORM cascade 配置）
+    # Delete the conversation (messages are cascade-deleted via ORM cascade configuration)
     await db.delete(conversation)
     await db.commit()
 
@@ -204,15 +214,16 @@ async def update_conversation_title(
 ) -> ConversationResponse:
     """
     更新对话标题。
+    Update the title of a conversation.
 
     Args:
-        conversation_id: 对话 ID
-        body: 包含新标题的请求体
-        current_user: 当前登录用户
-        db: 数据库会话
+        conversation_id: 对话 ID / Conversation ID
+        body: 包含新标题的请求体 / Request body containing the new title
+        current_user: 当前登录用户 / Currently authenticated user
+        db: 数据库会话 / Database session
 
     Returns:
-        ConversationResponse: 更新后的对话信息
+        ConversationResponse: 更新后的对话信息 / Updated conversation information
     """
     conv_result = await db.execute(
         select(Conversation).where(

@@ -1,6 +1,8 @@
 /**
  * 登录页面
+ * Login page
  * 全屏渐变背景 + 磨砂玻璃卡片 + Framer Motion 入场动画
+ * Full-screen gradient background + frosted glass card + Framer Motion entrance animation
  */
 
 import { useState } from 'react'
@@ -25,14 +27,14 @@ export default function LoginPage() {
 
   return (
     <div className="relative min-h-screen flex items-center justify-center overflow-hidden noise-bg">
-      {/* 深色渐变背景 */}
+      {/* 深色渐变背景 / Dark gradient background */}
       <div className="absolute inset-0 bg-dark-gradient" />
 
-      {/* 背景光晕 */}
+      {/* 背景光晕 / Background glow orbs */}
       <div className="absolute top-1/4 left-1/3 w-96 h-96 bg-brand-purple/20 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-1/4 right-1/3 w-96 h-96 bg-brand-blue/20 rounded-full blur-[120px] pointer-events-none" />
 
-      {/* 登录卡片 */}
+      {/* 登录卡片 / Login card */}
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
@@ -40,7 +42,7 @@ export default function LoginPage() {
         className="relative z-10 w-full max-w-md mx-4"
       >
         <div className="glass-card p-8 shadow-card">
-          {/* Logo 区域 */}
+          {/* Logo 区域 / Logo section */}
           <div className="flex flex-col items-center mb-8">
             <div className="w-14 h-14 rounded-2xl bg-brand-gradient flex items-center justify-center mb-4 shadow-glow-purple">
               <Mic className="w-7 h-7 text-white" />
@@ -49,12 +51,12 @@ export default function LoginPage() {
             <p className="text-text-secondary text-sm mt-1">AI 语音对话助手</p>
           </div>
 
-          {/* 标题 */}
+          {/* 标题 / Heading */}
           <h2 className="text-xl font-semibold text-text-primary mb-6 text-center">
             欢迎回来
           </h2>
 
-          {/* 错误提示 */}
+          {/* 错误提示 / Error alert */}
           {error && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
@@ -66,9 +68,9 @@ export default function LoginPage() {
             </motion.div>
           )}
 
-          {/* 表单 */}
+          {/* 表单 / Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* 邮箱 */}
+            {/* 邮箱 / Email field */}
             <div className="space-y-1.5">
               <label className="text-sm text-text-secondary font-medium">邮箱</label>
               <div className="relative">
@@ -84,7 +86,7 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* 密码 */}
+            {/* 密码 / Password field */}
             <div className="space-y-1.5">
               <label className="text-sm text-text-secondary font-medium">密码</label>
               <div className="relative">
@@ -100,7 +102,7 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* 登录按钮 */}
+            {/* 登录按钮 / Submit button */}
             <button
               type="submit"
               disabled={isLoading}
@@ -117,7 +119,7 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* 切换注册 */}
+          {/* 切换注册 / Switch to register */}
           <p className="text-center text-text-secondary text-sm mt-6">
             还没有账号？{' '}
             <Link

@@ -1,7 +1,10 @@
 /**
  * 消息气泡组件
+ * Message bubble component
  * 用户消息：右对齐+紫色渐变
+ * User messages: right-aligned with purple gradient
  * AI消息：左对齐+磨砂玻璃+头像+音频播放条
+ * AI messages: left-aligned with frosted glass, avatar, and audio player bar
  */
 
 import { Mic } from 'lucide-react'
@@ -11,7 +14,7 @@ import type { Message } from '@/types'
 
 interface MessageBubbleProps {
   message: Message
-  audioData?: string[]  // base64 WAV 块列表（AI 消息专用）
+  audioData?: string[]  // base64 WAV 块列表（AI 消息专用）/ base64 WAV chunk list (AI messages only)
 }
 
 export default function MessageBubble({ message, audioData }: MessageBubbleProps) {
@@ -47,17 +50,17 @@ export default function MessageBubble({ message, audioData }: MessageBubbleProps
       transition={{ duration: 0.25 }}
       className="flex gap-3 mb-4"
     >
-      {/* AI 头像 */}
+      {/* AI 头像 / AI avatar */}
       <div className="w-8 h-8 rounded-xl bg-brand-gradient flex items-center justify-center flex-shrink-0 mt-1 shadow-glow-purple/20">
         <Mic className="w-4 h-4 text-white" />
       </div>
 
       <div className="max-w-[88%] md:max-w-[70%]">
-        {/* 消息气泡 */}
+        {/* 消息气泡 / Message bubble */}
         <div className="glass-card px-4 py-3 text-sm text-text-primary leading-relaxed rounded-2xl rounded-tl-sm">
           {message.content}
         </div>
-        {/* 音频播放条 */}
+        {/* 音频播放条 / Audio player bar */}
         {audioData && <AudioPlayer audioData={audioData} />}
         <p className="text-xs text-text-muted mt-1">
           {new Date(message.created_at).toLocaleTimeString('zh-CN', {
@@ -70,7 +73,8 @@ export default function MessageBubble({ message, audioData }: MessageBubbleProps
   )
 }
 
-/** 流式 AI 消息（打字机光标动画） */
+/** 流式 AI 消息（打字机光标动画）
+ *  Streaming AI message with typewriter cursor animation */
 export function StreamingBubble({ text }: { text: string }) {
   if (!text) return null
 

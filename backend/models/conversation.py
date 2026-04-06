@@ -1,5 +1,6 @@
 """
 对话 ORM 模型
+Conversation ORM model.
 """
 
 from datetime import datetime
@@ -14,6 +15,8 @@ class Conversation(Base):
     """
     对话表。
     每条记录是一个对话会话，关联用户和所用音色。
+    Conversations table.
+    Each record represents a single conversation session, linked to a user and a voice model.
     """
 
     __tablename__ = "conversations"
@@ -26,6 +29,7 @@ class Conversation(Base):
         index=True,
     )
     # 使用的音色（可选，允许 null 表示未选择音色）
+    # The voice model used (optional; NULL means no voice model selected)
     voice_model_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("voice_models.id", ondelete="SET NULL"),
@@ -44,7 +48,7 @@ class Conversation(Base):
         nullable=False,
     )
 
-    # 关联关系
+    # 关联关系 / Relationships
     user: Mapped["User"] = relationship("User", back_populates="conversations")  # noqa: F821
     voice_model: Mapped["VoiceModel | None"] = relationship(  # noqa: F821
         "VoiceModel",

@@ -1,7 +1,10 @@
 /**
  * 录音按钮组件
+ * Recording button component
  * 默认：紫色渐变大圆形按钮
+ * Default state: large circular button with purple gradient
  * 录音中：红色脉冲动画 + 3 个同心圆声波扩散
+ * Recording state: red pulse animation with 3 concentric expanding ring waves
  */
 
 import { motion, AnimatePresence } from 'framer-motion'
@@ -10,7 +13,7 @@ import type { RecordingState } from '@/types'
 
 interface RecordButtonProps {
   state: RecordingState
-  audioLevel?: number     // 0~1，录音时实时音量（用于波形动画）
+  audioLevel?: number     // 0~1，录音时实时音量（用于波形动画）/ 0–1, real-time audio level during recording (used for waveform animation)
   onMouseDown: () => void
   onMouseUp: () => void
   onTouchStart: () => void
@@ -18,6 +21,7 @@ interface RecordButtonProps {
 }
 
 // 波形条的相对高度因子（中间高、两边低，形成山形轮廓）
+// Relative height factors for waveform bars (taller in the middle, shorter on the sides — mountain silhouette)
 const BAR_FACTORS = [0.45, 0.7, 1.0, 0.7, 0.45]
 
 export default function RecordButton({
@@ -33,7 +37,7 @@ export default function RecordButton({
 
   return (
     <div className="relative flex items-center justify-center">
-      {/* 声波同心圆（录音时显示） */}
+      {/* 声波同心圆（录音时显示）/ Concentric sound-wave rings (visible while recording) */}
       <AnimatePresence>
         {isRecording && (
           <>
@@ -56,7 +60,7 @@ export default function RecordButton({
         )}
       </AnimatePresence>
 
-      {/* 主按钮 */}
+      {/* 主按钮 / Main button */}
       <motion.button
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
@@ -76,7 +80,8 @@ export default function RecordButton({
         {isProcessing ? (
           <Loader2 className="w-7 h-7 text-white/60 animate-spin" />
         ) : isRecording ? (
-          /* 实时波形：5 根柱子随音量动态变高，最低 20% 最高 100% */
+          /* 实时波形：5 根柱子随音量动态变高，最低 20% 最高 100%
+             Real-time waveform: 5 bars that grow dynamically with volume, min 20% max 100% */
           <div className="flex items-end gap-[3px] h-7 pb-0.5">
             {BAR_FACTORS.map((factor, i) => {
               const heightPct = Math.round(

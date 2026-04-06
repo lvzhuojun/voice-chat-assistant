@@ -1,6 +1,8 @@
 """
 用户认证 API 路由
+User authentication API routes.
 提供注册、登录、获取当前用户接口
+Provides endpoints for user registration, login, and retrieving the current user.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -42,19 +44,23 @@ async def register(
 ) -> TokenResponse:
     """
     用户注册接口。
+    User registration endpoint.
 
     - 检查邮箱是否已被注册
+    - Check if the email address is already registered.
     - 密码 bcrypt 哈希存储
+    - Store password as a bcrypt hash.
     - 注册成功后自动颁发 JWT Token
+    - Issue a JWT token automatically upon successful registration.
 
     Args:
-        request: 注册请求（email、password、username）
-        db: 数据库会话
+        request: 注册请求（email、password、username） / Registration request (email, password, username)
+        db: 数据库会话 / Database session
 
     Returns:
-        TokenResponse: JWT Token + 用户信息
+        TokenResponse: JWT Token + 用户信息 / JWT token and user information
     """
-    # 检查邮箱是否已注册
+    # 检查邮箱是否已注册 / Check whether the email address is already registered
     result = await db.execute(select(User).where(User.email == body.email))
     existing_user = result.scalar_one_or_none()
     if existing_user:
@@ -63,7 +69,7 @@ async def register(
             detail="该邮箱已被注册",
         )
 
-    # 创建用户
+    # 创建用户 / Create the new user record
     user = User(
         email=body.email,
         password_hash=hash_password(body.password),
@@ -76,7 +82,7 @@ async def register(
 
     logger.info(f"新用户注册：{user.email} (id={user.id})")
 
-    # 生成 JWT Token
+    # 生成 JWT Token / Generate a JWT access token
     token = create_access_token(user_id=user.id, email=user.email)
 
     return TokenResponse(
@@ -95,22 +101,26 @@ async def login(
 ) -> TokenResponse:
     """
     用户登录接口。
+    User login endpoint.
 
     - 验证邮箱和密码
+    - Verify the email address and password.
     - 登录成功后颁发 JWT Token
+    - Issue a JWT token upon successful authentication.
 
     Args:
-        request: 登录请求（email、password）
-        db: 数据库会话
+        request: 登录请求（email、password） / Login request (email, password)
+        db: 数据库会话 / Database session
 
     Returns:
-        TokenResponse: JWT Token + 用户信息
+        TokenResponse: JWT Token + 用户信息 / JWT token and user information
     """
-    # 查找用户
+    # 查找用户 / Look up the user by email
     result = await db.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
 
     # 验证用户存在且密码正确（使用常量时间比较防止时序攻击）
+    # Verify the user exists and the password is correct (constant-time comparison to prevent timing attacks)
     if not user or not verify_password(body.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -126,7 +136,7 @@ async def login(
 
     logger.info(f"用户登录：{user.email} (id={user.id})")
 
-    # 生成 JWT Token
+    # 生成 JWT Token / Generate a JWT access token
     token = create_access_token(user_id=user.id, email=user.email)
 
     return TokenResponse(
@@ -142,12 +152,14 @@ async def get_me(
 ) -> UserResponse:
     """
     获取当前登录用户信息。
+    Retrieve the currently authenticated user's information.
     需要 Authorization: Bearer {token} Header。
+    Requires an Authorization: Bearer {token} header.
 
     Args:
-        current_user: 通过 JWT 验证的当前用户（依赖注入）
+        current_user: 通过 JWT 验证的当前用户（依赖注入） / Current user resolved via JWT authentication (dependency injection)
 
     Returns:
-        UserResponse: 用户信息
+        UserResponse: 用户信息 / User information
     """
     return UserResponse.model_validate(current_user)

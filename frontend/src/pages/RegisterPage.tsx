@@ -1,6 +1,8 @@
 /**
  * 注册页面
+ * Registration page
  * 同登录页设计风格
+ * Shares the same design style as the login page
  */
 
 import { useState } from 'react'
@@ -39,14 +41,14 @@ export default function RegisterPage() {
 
   return (
     <div className="relative min-h-screen flex items-center justify-center overflow-hidden noise-bg">
-      {/* 深色渐变背景 */}
+      {/* 深色渐变背景 / Dark gradient background */}
       <div className="absolute inset-0 bg-dark-gradient" />
 
-      {/* 背景光晕 */}
+      {/* 背景光晕 / Background glow orbs */}
       <div className="absolute top-1/4 right-1/3 w-96 h-96 bg-brand-purple/20 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-1/4 left-1/3 w-80 h-80 bg-brand-blue/20 rounded-full blur-[120px] pointer-events-none" />
 
-      {/* 注册卡片 */}
+      {/* 注册卡片 / Registration card */}
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
@@ -67,7 +69,7 @@ export default function RegisterPage() {
             创建账号
           </h2>
 
-          {/* 错误提示 */}
+          {/* 错误提示 / Error alert */}
           {error && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
@@ -79,9 +81,9 @@ export default function RegisterPage() {
             </motion.div>
           )}
 
-          {/* 表单 */}
+          {/* 表单 / Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* 用户名 */}
+            {/* 用户名 / Username field */}
             <div className="space-y-1.5">
               <label className="text-sm text-text-secondary font-medium">用户名</label>
               <div className="relative">
@@ -96,7 +98,7 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {/* 邮箱 */}
+            {/* 邮箱 / Email field */}
             <div className="space-y-1.5">
               <label className="text-sm text-text-secondary font-medium">邮箱</label>
               <div className="relative">
@@ -112,7 +114,7 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {/* 密码 */}
+            {/* 密码 / Password field */}
             <div className="space-y-1.5">
               <label className="text-sm text-text-secondary font-medium">密码</label>
               <div className="relative">
@@ -127,7 +129,7 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {/* 确认密码 */}
+            {/* 确认密码 / Confirm password field */}
             <div className="space-y-1.5">
               <label className="text-sm text-text-secondary font-medium">确认密码</label>
               <div className="relative">
@@ -142,7 +144,7 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {/* 注册按钮 */}
+            {/* 注册按钮 / Submit button */}
             <button
               type="submit"
               disabled={isLoading}
@@ -159,7 +161,7 @@ export default function RegisterPage() {
             </button>
           </form>
 
-          {/* 切换登录 */}
+          {/* 切换登录 / Switch to login */}
           <p className="text-center text-text-secondary text-sm mt-6">
             已有账号？{' '}
             <Link

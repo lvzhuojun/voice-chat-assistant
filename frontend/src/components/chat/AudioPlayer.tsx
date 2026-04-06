@@ -1,14 +1,18 @@
 /**
  * 音频播放条组件
+ * Audio player bar component
  * 显示在 AI 消息下方，支持播放/暂停和进度显示
+ * Displayed below AI messages; supports play/pause and progress display
  * 支持多段 base64 WAV 顺序播放（分句 TTS 场景）
+ * Supports sequential playback of multiple base64 WAV chunks (sentence-by-sentence TTS)
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Play, Pause, Volume2 } from 'lucide-react'
 
 interface AudioPlayerProps {
-  /** base64 编码的 WAV 音频数据块列表 */
+  /** base64 编码的 WAV 音频数据块列表
+   *  List of base64-encoded WAV audio data chunks */
   audioData?: string[]
 }
 
@@ -21,10 +25,11 @@ export default function AudioPlayer({ audioData }: AudioPlayerProps) {
   const blobUrlsRef = useRef<string[]>([])
   const chunkDurationsRef = useRef<number[]>([])
   const currentIndexRef = useRef(0)
-  const elapsedBeforeCurrentRef = useRef(0)  // 当前块之前所有块的累计时长
+  const elapsedBeforeCurrentRef = useRef(0)  // 当前块之前所有块的累计时长 / Cumulative duration of all chunks before the current one
   const progressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  /** 停止当前播放并清理 Audio 元素 */
+  /** 停止当前播放并清理 Audio 元素
+   *  Stop current playback and clean up the Audio element */
   const stopAudio = useCallback(() => {
     if (audioRef.current) {
       audioRef.current.pause()
@@ -38,13 +43,14 @@ export default function AudioPlayer({ audioData }: AudioPlayerProps) {
   }, [])
 
   // 当 audioData 变化时重建 blob URL 列表
+  // Rebuild the blob URL list whenever audioData changes
   useEffect(() => {
     stopAudio()
     setIsPlaying(false)
     setProgress(0)
     setTotalDuration(0)
 
-    // 释放旧的 blob URL
+    // 释放旧的 blob URL / Revoke previously created blob URLs
     blobUrlsRef.current.forEach((u) => URL.revokeObjectURL(u))
     blobUrlsRef.current = []
     chunkDurationsRef.current = []
@@ -53,7 +59,7 @@ export default function AudioPlayer({ audioData }: AudioPlayerProps) {
 
     if (!audioData?.length) return
 
-    // 解码所有块为 blob URL
+    // 解码所有块为 blob URL / Decode all chunks into blob URLs
     const urls: string[] = []
     for (const data of audioData) {
       try {
@@ -69,7 +75,9 @@ export default function AudioPlayer({ audioData }: AudioPlayerProps) {
     blobUrlsRef.current = urls
 
     // 预加载各块时长以计算总时长
+    // Preload each chunk's duration to compute the total duration
     // cancelled 标记：audioData 变化触发清理时取消回调，防止写入已失效的 refs
+    // cancelled flag: cancels callbacks on cleanup to prevent writing to stale refs
     let cancelled = false
     let loaded = 0
     const durations = new Array<number>(urls.length).fill(0)
@@ -97,7 +105,7 @@ export default function AudioPlayer({ audioData }: AudioPlayerProps) {
 
     return () => {
       cancelled = true
-      // 清空 src 中断浏览器解码，释放资源
+      // 清空 src 中断浏览器解码，释放资源 / Clear src to abort browser decoding and release resources
       tmpAudios.forEach((t) => { t.src = '' })
       stopAudio()
       blobUrlsRef.current.forEach((u) => URL.revokeObjectURL(u))
@@ -105,7 +113,8 @@ export default function AudioPlayer({ audioData }: AudioPlayerProps) {
     }
   }, [audioData, stopAudio])
 
-  /** 从指定块索引开始播放 */
+  /** 从指定块索引开始播放
+   *  Start playback from the specified chunk index */
   const playFrom = useCallback((index: number) => {
     stopAudio()
 
@@ -124,13 +133,13 @@ export default function AudioPlayer({ audioData }: AudioPlayerProps) {
     audioRef.current = audio
     currentIndexRef.current = index
 
-    // 计算此块之前的累计时长
+    // 计算此块之前的累计时长 / Calculate cumulative duration of all preceding chunks
     const elapsed = chunkDurationsRef.current.slice(0, index).reduce((a, b) => a + b, 0)
     elapsedBeforeCurrentRef.current = elapsed
 
     audio.play().catch(() => {})
 
-    // 定时更新进度条
+    // 定时更新进度条 / Periodically update the progress bar
     progressTimerRef.current = setInterval(() => {
       const total = totalDuration || chunkDurationsRef.current.reduce((a, b) => a + b, 0)
       if (!total) return
@@ -155,6 +164,7 @@ export default function AudioPlayer({ audioData }: AudioPlayerProps) {
       setIsPlaying(false)
     } else {
       // 如果已播放完（currentIndex 越界），从头开始
+      // If playback has finished (currentIndex out of range), restart from the beginning
       const idx = currentIndexRef.current < blobUrlsRef.current.length
         ? currentIndexRef.current
         : 0
@@ -170,7 +180,7 @@ export default function AudioPlayer({ audioData }: AudioPlayerProps) {
     const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
     const targetTime = ratio * total
 
-    // 找出目标时间所在的块
+    // 找出目标时间所在的块 / Find the chunk that contains the target seek time
     let cumulative = 0
     for (let i = 0; i < chunkDurationsRef.current.length; i++) {
       cumulative += chunkDurationsRef.current[i]
@@ -202,7 +212,7 @@ export default function AudioPlayer({ audioData }: AudioPlayerProps) {
 
   return (
     <div className="flex items-center gap-2 mt-2 bg-white/5 rounded-lg px-3 py-2 max-w-xs">
-      {/* 播放/暂停按钮 */}
+      {/* 播放/暂停按钮 / Play/pause button */}
       <button
         onClick={togglePlay}
         className="w-7 h-7 rounded-full bg-brand-purple/20 hover:bg-brand-purple/40 flex items-center justify-center transition-all duration-150 flex-shrink-0"
@@ -214,7 +224,7 @@ export default function AudioPlayer({ audioData }: AudioPlayerProps) {
         )}
       </button>
 
-      {/* 进度条 */}
+      {/* 进度条 / Progress bar */}
       <div
         className="flex-1 h-1.5 bg-white/10 rounded-full cursor-pointer overflow-hidden"
         onClick={handleSeek}
@@ -225,7 +235,7 @@ export default function AudioPlayer({ audioData }: AudioPlayerProps) {
         />
       </div>
 
-      {/* 时长 */}
+      {/* 时长 / Duration display */}
       <div className="flex items-center gap-1 text-xs text-text-muted flex-shrink-0">
         <Volume2 className="w-3 h-3" />
         <span>{formatTime(totalDuration)}</span>

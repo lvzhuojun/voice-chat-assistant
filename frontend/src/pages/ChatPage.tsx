@@ -1,7 +1,10 @@
 /**
  * 对话主界面
+ * Main chat interface
  * 布局：左侧 260px 侧边栏 + 右侧主区域
+ * Layout: 260px left sidebar + right main area
  * 功能：语音录制/文字输入 + WebSocket 实时对话 + 消息历史
+ * Features: voice recording / text input + WebSocket real-time chat + message history
  */
 
 import { useEffect, useRef, useState } from 'react'
@@ -68,6 +71,7 @@ export default function ChatPage() {
   })
 
   // 初始化：加载对话列表 + 当前音色
+  // Initialization: load conversation list and current voice model
   useEffect(() => {
     const init = async () => {
       try {
@@ -78,7 +82,7 @@ export default function ChatPage() {
         ])
         if (convRes.status === 'fulfilled') {
           setConversations(convRes.value.data)
-          // 自动选中第一个对话
+          // 自动选中第一个对话 / Automatically select the first conversation
           if (convRes.value.data.length > 0 && !activeConversationId) {
             setActiveConversation(convRes.value.data[0].id)
           }
@@ -86,13 +90,13 @@ export default function ChatPage() {
         if (voiceRes.status === 'fulfilled') setCurrentVoice(voiceRes.value.data)
         if (voicesRes.status === 'fulfilled') setVoices(voicesRes.value.data)
       } catch {
-        // 忽略
+        // 忽略 / Ignore errors silently
       }
     }
     init()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 切换对话时加载消息
+  // 切换对话时加载消息 / Load messages when the active conversation changes
   useEffect(() => {
     if (!activeConversationId) return
     setIsLoadingMessages(true)
@@ -104,12 +108,13 @@ export default function ChatPage() {
       .finally(() => setIsLoadingMessages(false))
   }, [activeConversationId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 消息列表更新时自动滚到底部
+  // 消息列表更新时自动滚到底部 / Auto-scroll to the bottom when the message list updates
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, streamingText])
 
   // 将 WebSocket 服务端错误同步到通知栏
+  // Sync WebSocket server errors to the notification bar
   useEffect(() => {
     if (!wsError) return
     setNotice({ msg: wsError, type: 'error' })
@@ -117,7 +122,7 @@ export default function ChatPage() {
     return () => clearTimeout(t)
   }, [wsError])
 
-  // 新建对话
+  // 新建对话 / Create a new conversation
   const handleNewConversation = async () => {
     try {
       const res = await conversationApi.createConversation({
@@ -132,7 +137,7 @@ export default function ChatPage() {
     }
   }
 
-  // 删除对话
+  // 删除对话 / Delete a conversation
   const handleDeleteConversation = async (e: React.MouseEvent, id: number) => {
     e.stopPropagation()
     try {
@@ -147,19 +152,19 @@ export default function ChatPage() {
     }
   }
 
-  // 开始录音
+  // 开始录音 / Start recording
   const handleRecordStart = async () => {
     if (!activeConversationId) {
       try {
         await handleNewConversation()
       } catch {
-        return  // 对话创建失败，不启动录音
+        return  // 对话创建失败，不启动录音 / Abort if conversation creation failed
       }
     }
     await startRecording()
   }
 
-  // 停止录音，发送音频
+  // 停止录音，发送音频 / Stop recording and send the audio blob
   const handleRecordStop = async () => {
     const blob = await stopRecording()
     if (blob && blob.size > 1000) {
@@ -167,10 +172,10 @@ export default function ChatPage() {
     }
   }
 
-  // 发送文字消息
+  // 发送文字消息 / Send a text message
   const handleSendText = () => {
     if (!textInput.trim() || !activeConversationId) return
-    // 本地显示用户消息
+    // 本地显示用户消息 / Optimistically display the user message locally
     addMessage({
       id: Date.now(),
       conversation_id: activeConversationId,
@@ -187,12 +192,12 @@ export default function ChatPage() {
     navigate('/login')
   }
 
-  // 当前对话信息
+  // 当前对话信息 / Current active conversation object
   const activeConversation = conversations.find((c) => c.id === activeConversationId)
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: '#0a0a0f' }}>
-      {/* ── 移动端遮罩层 ───────────────────────────────────────── */}
+      {/* ── 移动端遮罩层 / Mobile backdrop overlay ───────────────── */}
       <AnimatePresence>
         {isSidebarOpen && (
           <motion.div
@@ -207,7 +212,7 @@ export default function ChatPage() {
         )}
       </AnimatePresence>
 
-      {/* ── 左侧侧边栏 ─────────────────────────────────────────── */}
+      {/* ── 左侧侧边栏 / Left sidebar ─────────────────────────────── */}
       <aside
         className={`
           fixed inset-y-0 left-0 z-50 flex flex-col w-[280px]
@@ -217,14 +222,14 @@ export default function ChatPage() {
           md:relative md:translate-x-0 md:w-[260px] md:flex-shrink-0
         `}
       >
-        {/* Logo + 新建按钮 */}
+        {/* Logo + 新建按钮 / Logo + new conversation button */}
         <div className="p-4 border-b border-white/[0.06]">
           <div className="flex items-center gap-2 mb-3">
             <div className="w-8 h-8 rounded-xl bg-brand-gradient flex items-center justify-center">
               <Mic className="w-4 h-4 text-white" />
             </div>
             <span className="font-bold text-text-primary flex-1">Voice Chat</span>
-            {/* 关闭按钮（移动端） */}
+            {/* 关闭按钮（移动端）/ Close button (mobile only) */}
             <button
               className="md:hidden w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 transition-all"
               onClick={() => setIsSidebarOpen(false)}
@@ -241,7 +246,7 @@ export default function ChatPage() {
           </button>
         </div>
 
-        {/* 对话列表 */}
+        {/* 对话列表 / Conversation list */}
         <div className="flex-1 overflow-y-auto py-2 px-2">
           <p className="text-xs text-text-muted px-2 mb-2 mt-1">最近对话</p>
           <AnimatePresence>
@@ -275,9 +280,9 @@ export default function ChatPage() {
           )}
         </div>
 
-        {/* 底部：音色卡片 + 用户信息 */}
+        {/* 底部：音色卡片 + 用户信息 / Bottom: voice card + user info */}
         <div className="border-t border-white/[0.06] p-3 space-y-2">
-          {/* 当前音色 */}
+          {/* 当前音色 / Current voice model */}
           <button
             onClick={() => navigate('/voices')}
             className="w-full glass-card p-3 flex items-center gap-2 hover:bg-white/[0.08] transition-all duration-150 text-left"
@@ -294,7 +299,7 @@ export default function ChatPage() {
             <ChevronRight className="w-3.5 h-3.5 text-text-muted flex-shrink-0" />
           </button>
 
-          {/* 用户信息 + 登出 */}
+          {/* 用户信息 + 登出 / User info + logout */}
           <div className="flex items-center gap-2 px-1">
             <div className="w-7 h-7 rounded-full bg-brand-gradient flex items-center justify-center flex-shrink-0">
               <span className="text-white text-xs font-bold">
@@ -316,11 +321,11 @@ export default function ChatPage() {
         </div>
       </aside>
 
-      {/* ── 右侧主区域 ──────────────────────────────────────────── */}
+      {/* ── 右侧主区域 / Right main area ──────────────────────────── */}
       <main className="flex-1 flex flex-col min-w-0">
-        {/* 顶部栏 */}
+        {/* 顶部栏 / Top bar */}
         <div className="h-14 border-b border-white/[0.06] flex items-center px-4 md:px-6 gap-3 flex-shrink-0">
-          {/* 汉堡按钮（移动端） */}
+          {/* 汉堡按钮（移动端）/ Hamburger menu button (mobile only) */}
           <button
             className="md:hidden w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10 transition-all flex-shrink-0"
             onClick={() => setIsSidebarOpen(true)}
@@ -343,10 +348,10 @@ export default function ChatPage() {
           )}
         </div>
 
-        {/* 消息区域 */}
+        {/* 消息区域 / Message area */}
         <div className="flex-1 overflow-y-auto px-3 py-4 md:px-6 md:py-6">
           {!activeConversationId ? (
-            // 空状态
+            // 空状态 / Empty state
             <div className="flex flex-col items-center justify-center h-full text-center">
               <motion.div
                 initial={{ opacity: 0, scale: 0.8 }}
@@ -380,7 +385,7 @@ export default function ChatPage() {
           )}
         </div>
 
-        {/* 通知栏（WS 错误 / 连接提示） */}
+        {/* 通知栏（WS 错误 / 连接提示）/ Notification bar (WebSocket errors / connection hints) */}
         <AnimatePresence>
           {notice && (
             <motion.div
@@ -400,10 +405,10 @@ export default function ChatPage() {
           )}
         </AnimatePresence>
 
-        {/* 底部输入区 */}
+        {/* 底部输入区 / Bottom input area */}
         <div className="border-t border-white/[0.06] px-4 py-4 md:px-6 md:py-5 flex-shrink-0">
           {inputMode === 'voice' ? (
-            // 语音模式
+            // 语音模式 / Voice input mode
             <div className="flex items-center justify-center gap-8">
               <div className="text-center text-xs text-text-muted w-24">
                 {recordingState === 'idle' && '按住说话'}
@@ -424,7 +429,7 @@ export default function ChatPage() {
                 onTouchEnd={handleRecordStop}
               />
 
-              {/* 切换文字输入 */}
+              {/* 切换文字输入 / Switch to text input mode */}
               <button
                 onClick={() => setInputMode('text')}
                 className="w-10 h-10 rounded-xl glass-card flex items-center justify-center hover:bg-white/10 transition-all duration-150"
@@ -434,7 +439,7 @@ export default function ChatPage() {
               </button>
             </div>
           ) : (
-            // 文字模式
+            // 文字模式 / Text input mode
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setInputMode('voice')}

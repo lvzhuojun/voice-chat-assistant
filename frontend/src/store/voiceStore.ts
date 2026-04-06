@@ -1,5 +1,6 @@
 /**
  * 音色状态 Store（Zustand）
+ * Voice model state store (Zustand).
  */
 
 import { create } from 'zustand'

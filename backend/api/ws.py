@@ -1,6 +1,8 @@
 """
 WebSocket 对话路由
+WebSocket conversation route.
 实现全双工语音对话：音频帧/文字消息 → STT→LLM→TTS → 流式推送
+Implements full-duplex voice conversation: audio frames / text messages → STT → LLM → TTS → streaming push.
 """
 
 import json
@@ -27,7 +29,7 @@ settings = get_settings()
 
 router = APIRouter(tags=["WebSocket"])
 
-# Redis 客户端（懒加载）
+# Redis 客户端（懒加载） / Redis client (lazy-loaded)
 _redis = None
 
 
@@ -41,11 +43,15 @@ async def _try_generate_title(
 ) -> None:
     """
     首轮对话完成后尝试自动生成标题。
+    Attempt to auto-generate a conversation title after the first exchange.
     仅在对话标题为默认值且消息数恰好为 2（1用户+1AI）时触发。
+    Only triggered when the title is still the default value and the message count is exactly 2 (1 user + 1 AI).
     使用 UPDATE 语句直接持久化标题，避免 detached object 问题。
+    Uses an UPDATE statement to persist the title directly, avoiding detached-object issues.
     """
     try:
         # 只在首轮（2条消息）且标题未修改时生成
+        # Only generate when there are exactly 2 messages and the title has not been changed
         if current_title not in ("新对话", ""):
             return
         count_result = await db.execute(
@@ -71,7 +77,7 @@ async def _try_generate_title(
 
 
 async def _get_redis():
-    """获取 Redis 客户端。"""
+    """获取 Redis 客户端。/ Retrieve the Redis client."""
     global _redis
     if _redis is not None:
         return _redis
@@ -92,18 +98,21 @@ async def _get_current_voice(
 ) -> Optional[VoiceModel]:
     """
     获取当前对话使用的音色。
+    Retrieve the voice model to use for the current conversation.
     优先从 Redis 获取用户当前选择的音色，
+    First attempts to read the user's current selection from Redis,
     其次从对话关联的音色，最后取用户第一个音色。
+    then falls back to the conversation-linked voice model, and finally to the user's first voice model.
 
     Args:
-        user_id: 用户 ID
-        conversation: 当前对话
-        db: 数据库会话
+        user_id: 用户 ID / User ID
+        conversation: 当前对话 / Current conversation object
+        db: 数据库会话 / Database session
 
     Returns:
-        VoiceModel 或 None
+        VoiceModel 或 None / VoiceModel or None
     """
-    # 1. 从 Redis 获取
+    # 1. 从 Redis 获取 / Attempt to retrieve from Redis
     redis = await _get_redis()
     voice_id_str = None
     if redis:
@@ -123,7 +132,7 @@ async def _get_current_voice(
         if voice:
             return voice
 
-    # 2. 从对话关联的音色
+    # 2. 从对话关联的音色 / Fall back to the conversation-linked voice model
     if conversation.voice_model_id:
         result = await db.execute(
             select(VoiceModel).where(VoiceModel.id == conversation.voice_model_id)
@@ -132,7 +141,7 @@ async def _get_current_voice(
         if voice:
             return voice
 
-    # 3. 用户第一个音色
+    # 3. 用户第一个音色 / Fall back to the user's most recent active voice model
     result = await db.execute(
         select(VoiceModel)
         .where(VoiceModel.user_id == user_id, VoiceModel.is_active == True)
@@ -150,26 +159,30 @@ async def websocket_chat(
 ) -> None:
     """
     WebSocket 全双工语音对话端点。
+    WebSocket full-duplex voice conversation endpoint.
 
     连接地址：ws://host/ws/chat/{conversation_id}?token={jwt}
+    Connection URL: ws://host/ws/chat/{conversation_id}?token={jwt}
 
     客户端 → 服务端：
-      - 二进制帧：音频数据（WebM/WAV）
-      - 文字帧：{"type":"text","content":"..."}
+    Client → Server:
+      - 二进制帧：音频数据（WebM/WAV） / Binary frame: audio data (WebM/WAV)
+      - 文字帧：{"type":"text","content":"..."} / Text frame: {"type":"text","content":"..."}
 
     服务端 → 客户端：
-      - {"type":"transcript","text":"..."}         STT 识别结果
-      - {"type":"llm_chunk","text":"..."}          LLM 流式文字
-      - {"type":"audio_chunk","data":"base64..."}  TTS 音频
-      - {"type":"done","message_id":"..."}         本轮完成
-      - {"type":"error","message":"..."}           错误信息
+    Server → Client:
+      - {"type":"transcript","text":"..."}         STT 识别结果 / STT recognition result
+      - {"type":"llm_chunk","text":"..."}          LLM 流式文字 / LLM streaming text chunk
+      - {"type":"audio_chunk","data":"base64..."}  TTS 音频 / TTS audio chunk
+      - {"type":"done","message_id":"..."}         本轮完成 / Current turn completed
+      - {"type":"error","message":"..."}           错误信息 / Error information
 
     Args:
-        websocket: WebSocket 连接对象
-        conversation_id: 对话 ID（URL 路径参数）
-        token: JWT Token（Query 参数，WebSocket 无法用 Header）
+        websocket: WebSocket 连接对象 / WebSocket connection object
+        conversation_id: 对话 ID（URL 路径参数） / Conversation ID (URL path parameter)
+        token: JWT Token（Query 参数，WebSocket 无法用 Header） / JWT token (query parameter; WebSocket does not support Authorization headers)
     """
-    # ── 验证 JWT Token ────────────────────────────────────────
+    # ── 验证 JWT Token ──────────────────────────────────────── Validate JWT Token ──
     payload = get_token_from_query(token)
     if payload is None:
         await websocket.close(code=4001, reason="无效的认证 Token")
@@ -180,7 +193,7 @@ async def websocket_chat(
         await websocket.close(code=4001, reason="Token 中缺少用户ID")
         return
 
-    # ── 验证对话权限 ──────────────────────────────────────────
+    # ── 验证对话权限 ────────────────────────────────────────── Verify conversation access ──
     async with AsyncSessionLocal() as db:
         result = await db.execute(
             select(Conversation).where(
@@ -194,13 +207,13 @@ async def websocket_chat(
             await websocket.close(code=4004, reason="对话不存在或无权访问")
             return
 
-    # ── 建立 WebSocket 连接 ───────────────────────────────────
+    # ── 建立 WebSocket 连接 ─────────────────────────────────── Establish WebSocket connection ──
     await websocket.accept()
     logger.info(f"WebSocket 连接建立：user={user_id} conv={conversation_id}")
 
-    # 定义发送消息的辅助函数
+    # 定义发送消息的辅助函数 / Helper function to safely send JSON messages to the client
     async def send_json(data: dict) -> None:
-        """安全地向客户端发送 JSON 消息。"""
+        """安全地向客户端发送 JSON 消息。/ Safely send a JSON message to the client."""
         try:
             await websocket.send_json(data)
         except Exception as e:
@@ -208,20 +221,21 @@ async def websocket_chat(
 
     try:
         while True:
-            # ── 接收消息 ──────────────────────────────────────
+            # ── 接收消息 ──────────────────────────────────────── Receive message ──
             message = await websocket.receive()
 
             # 客户端主动断开（切换对话/关闭页面）
+            # Client-initiated disconnect (switching conversations or closing the page)
             if message.get("type") == "websocket.disconnect":
                 logger.info(f"WebSocket 客户端断开：user={user_id} conv={conversation_id}")
                 break
 
-            # 判断消息类型
+            # 判断消息类型 / Determine the message type
             is_binary = "bytes" in message and message["bytes"] is not None
             is_text = "text" in message and message["text"] is not None
 
             async with AsyncSessionLocal() as db:
-                # 获取当前音色
+                # 获取当前音色 / Resolve the current voice model
                 voice = await _get_current_voice(user_id, conversation, db)
 
                 if voice is None:
@@ -232,9 +246,10 @@ async def websocket_chat(
                     continue
 
                 # 音色模型目录（reference.wav 始终存在，无论哪种引擎）
+                # Voice model directory (reference.wav always exists regardless of engine)
                 voice_model_dir = Path(voice.reference_wav_path).parent
 
-                # ── 处理音频帧 ────────────────────────────────
+                # ── 处理音频帧 ────────────────────────────────── Handle audio frame ──
                 if is_binary:
                     audio_bytes = message["bytes"]
                     if not audio_bytes:
@@ -244,7 +259,7 @@ async def websocket_chat(
 
                     transcript, reply_text = await process_audio_message(
                         audio_bytes=audio_bytes,
-                        audio_format="webm",  # 浏览器 MediaRecorder 默认输出 WebM
+                        audio_format="webm",  # 浏览器 MediaRecorder 默认输出 WebM / Browser MediaRecorder outputs WebM by default
                         conversation_id=conversation_id,
                         voice_id=voice.voice_id,
                         voice_model_dir=voice_model_dir,
@@ -254,7 +269,7 @@ async def websocket_chat(
                     )
 
                     if transcript and reply_text:
-                        # 存储用户语音识别消息
+                        # 存储用户语音识别消息 / Persist the STT-transcribed user message
                         user_msg = Message(
                             conversation_id=conversation_id,
                             role="user",
@@ -263,7 +278,7 @@ async def websocket_chat(
                         db.add(user_msg)
                         await db.commit()
 
-                        # 存储 AI 回复消息
+                        # 存储 AI 回复消息 / Persist the AI assistant reply message
                         assistant_msg = Message(
                             conversation_id=conversation_id,
                             role="assistant",
@@ -274,6 +289,7 @@ async def websocket_chat(
                         await db.refresh(assistant_msg)
 
                         # 更新对话 updated_at（用 UPDATE 语句，避免 detached object 问题）
+                        # Update conversation updated_at (use UPDATE statement to avoid detached-object issues)
                         await db.execute(
                             update(Conversation)
                             .where(Conversation.id == conversation_id)
@@ -286,13 +302,13 @@ async def websocket_chat(
                             "message_id": str(assistant_msg.id),
                         })
 
-                        # 首轮后自动生成标题
+                        # 首轮后自动生成标题 / Auto-generate title after the first exchange
                         await _try_generate_title(
                             conversation_id, conversation.title,
                             transcript, reply_text, db, send_json,
                         )
 
-                # ── 处理文字消息 ──────────────────────────────
+                # ── 处理文字消息 ──────────────────────────────── Handle text message ──
                 elif is_text:
                     text_data = message["text"]
                     try:
@@ -310,7 +326,7 @@ async def websocket_chat(
                     if msg_type == "text" and content:
                         logger.debug(f"收到文字消息：{content[:50]}")
 
-                        # 存储用户消息
+                        # 存储用户消息 / Persist the user's text message
                         user_msg = Message(
                             conversation_id=conversation_id,
                             role="user",
@@ -340,6 +356,7 @@ async def websocket_chat(
                             await db.refresh(assistant_msg)
 
                             # 更新对话 updated_at（用 UPDATE 语句，避免 detached object 问题）
+                            # Update conversation updated_at (use UPDATE statement to avoid detached-object issues)
                             await db.execute(
                                 update(Conversation)
                                 .where(Conversation.id == conversation_id)
@@ -352,7 +369,7 @@ async def websocket_chat(
                                 "message_id": str(assistant_msg.id),
                             })
 
-                            # 首轮后自动生成标题
+                            # 首轮后自动生成标题 / Auto-generate title after the first exchange
                             await _try_generate_title(
                                 conversation_id, conversation.title,
                                 content, reply_text, db, send_json,

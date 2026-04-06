@@ -1,5 +1,6 @@
 /**
  * 对话状态 Store（Zustand）
+ * Conversation state store (Zustand).
  */
 
 import { create } from 'zustand'
@@ -9,10 +10,10 @@ interface ChatState {
   conversations: Conversation[]
   activeConversationId: number | null
   messages: Message[]
-  streamingText: string          // LLM 流式文字（打字机效果）
-  isProcessing: boolean          // 正在处理（STT/LLM/TTS）
-  pendingAudioChunks: string[]   // 等待播放的 base64 音频块
-  messageAudioData: Record<number, string[]>  // messageId → base64 WAV 块列表（供重播）
+  streamingText: string          // LLM 流式文字（打字机效果）/ LLM streaming text (typewriter effect)
+  isProcessing: boolean          // 正在处理（STT/LLM/TTS）/ Currently processing (STT/LLM/TTS)
+  pendingAudioChunks: string[]   // 等待播放的 base64 音频块 / Pending base64 audio chunks awaiting playback
+  messageAudioData: Record<number, string[]>  // messageId → base64 WAV 块列表（供重播）/ messageId → list of base64 WAV chunks (for replay)
 
   setConversations: (convs: Conversation[]) => void
   addConversation: (conv: Conversation) => void

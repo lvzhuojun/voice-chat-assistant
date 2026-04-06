@@ -1,6 +1,8 @@
 /**
  * 音色管理页面
+ * Voice model management page
  * 拖拽上传 ZIP + 卡片网格 + 选中发光边框 + 删除确认弹窗
+ * Drag-and-drop ZIP upload + card grid + glowing selected border + delete confirmation dialog
  */
 
 import { useEffect, useState, useCallback, forwardRef } from 'react'
@@ -24,7 +26,8 @@ import { useVoiceStore } from '@/store/voiceStore'
 import * as voiceApi from '@/api/voices'
 import type { VoiceModel, UploadProgress, TtsEngine } from '@/types'
 
-/** 删除确认弹窗 */
+/** 删除确认弹窗
+ *  Delete confirmation dialog */
 function DeleteConfirmDialog({
   voice,
   onConfirm,
@@ -89,7 +92,8 @@ interface VoiceCardProps {
   onDelete: () => void
 }
 
-/** 音色卡片（forwardRef 供 framer-motion AnimatePresence popLayout 测量） */
+/** 音色卡片（forwardRef 供 framer-motion AnimatePresence popLayout 测量）
+ *  Voice model card (forwardRef for framer-motion AnimatePresence popLayout measurement) */
 const VoiceCard = forwardRef<HTMLDivElement, VoiceCardProps>(
 function VoiceCard({ voice, isSelected, onSelect, onDelete }, ref) {
   const metadata = voice.metadata_json as Record<string, unknown> | undefined
@@ -112,14 +116,14 @@ function VoiceCard({ voice, isSelected, onSelect, onDelete }, ref) {
       style={isSelected ? { boxShadow: '0 0 0 1px rgba(124,58,237,0.5), 0 0 24px rgba(124,58,237,0.2)' } : {}}
       onClick={onSelect}
     >
-      {/* 选中标记 */}
+      {/* 选中标记 / Selected checkmark */}
       {isSelected && (
         <div className="absolute top-3 right-3">
           <CheckCircle2 className="w-5 h-5 text-brand-purple" />
         </div>
       )}
 
-      {/* 删除按钮 */}
+      {/* 删除按钮 / Delete button */}
       <button
         onClick={(e) => {
           e.stopPropagation()
@@ -131,17 +135,17 @@ function VoiceCard({ voice, isSelected, onSelect, onDelete }, ref) {
         <Trash2 className="w-3.5 h-3.5 text-red-400" />
       </button>
 
-      {/* 图标 */}
+      {/* 图标 / Icon */}
       <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${
         isSelected ? 'bg-brand-gradient' : 'bg-white/10'
       }`}>
         <Mic className={`w-5 h-5 ${isSelected ? 'text-white' : 'text-text-secondary'}`} />
       </div>
 
-      {/* 名称 */}
+      {/* 名称 / Voice name */}
       <h3 className="font-semibold text-text-primary truncate mb-2">{voice.voice_name}</h3>
 
-      {/* 标签行 */}
+      {/* 标签行 / Tag row */}
       <div className="flex items-center gap-2 flex-wrap mb-3">
         <span className="inline-flex items-center gap-1 text-xs bg-white/10 text-text-secondary px-2 py-0.5 rounded-full">
           <Globe className="w-3 h-3" />
@@ -159,7 +163,7 @@ function VoiceCard({ voice, isSelected, onSelect, onDelete }, ref) {
         )}
       </div>
 
-      {/* GPT-SoVITS 训练轮次信息 */}
+      {/* GPT-SoVITS 训练轮次信息 / GPT-SoVITS training epoch info */}
       {voice.tts_engine !== 'cosyvoice2' && (gptEpochs || sovitsEpochs) && (
         <div className="flex items-center gap-1 text-xs text-text-muted mb-2">
           <Layers className="w-3 h-3" />
@@ -167,13 +171,13 @@ function VoiceCard({ voice, isSelected, onSelect, onDelete }, ref) {
         </div>
       )}
 
-      {/* 创建时间 */}
+      {/* 创建时间 / Creation date */}
       <div className="flex items-center gap-1 text-xs text-text-muted">
         <Calendar className="w-3 h-3" />
         <span>{new Date(voice.created_at).toLocaleDateString('zh-CN')}</span>
       </div>
 
-      {/* 底部按钮 */}
+      {/* 底部按钮 / Bottom action button */}
       <button
         onClick={(e) => {
           e.stopPropagation()
@@ -206,7 +210,7 @@ export default function VoicePage() {
     setTimeout(() => setToast(null), 3000)
   }
 
-  // 加载音色列表
+  // 加载音色列表 / Load the voice model list
   useEffect(() => {
     const load = async () => {
       setLoading(true)
@@ -218,7 +222,7 @@ export default function VoicePage() {
         if (voicesRes.status === 'fulfilled') setVoices(voicesRes.value.data)
         if (currentRes.status === 'fulfilled') setCurrentVoice(currentRes.value.data)
       } catch {
-        // 忽略
+        // 忽略 / Ignore errors silently
       } finally {
         setLoading(false)
       }
@@ -226,7 +230,7 @@ export default function VoicePage() {
     load()
   }, [setVoices, setCurrentVoice, setLoading])
 
-  // 处理文件上传
+  // 处理文件上传 / Handle file upload
   const handleUpload = useCallback(async (file: File) => {
     setUploadProgress({ filename: file.name, progress: 0, status: 'uploading' })
     try {
@@ -237,6 +241,7 @@ export default function VoicePage() {
       addVoice(res.data)
 
       // 若当前无选中音色，自动选择刚上传的音色
+      // If no voice is currently selected, automatically select the newly uploaded one
       if (!currentVoice) {
         try {
           await voiceApi.selectVoice(res.data.id)
@@ -260,7 +265,7 @@ export default function VoicePage() {
     }
   }, [addVoice, currentVoice, setCurrentVoice, selectedEngine])
 
-  // Dropzone 配置
+  // Dropzone 配置 / Dropzone configuration
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop: (files) => files[0] && handleUpload(files[0]),
     accept: { 'application/zip': ['.zip'] },
@@ -268,7 +273,7 @@ export default function VoicePage() {
     maxSize: 2 * 1024 * 1024 * 1024, // 2GB
   })
 
-  // 选择音色
+  // 选择音色 / Select a voice model
   const handleSelect = async (voice: VoiceModel) => {
     try {
       await voiceApi.selectVoice(voice.id)
@@ -279,7 +284,7 @@ export default function VoicePage() {
     }
   }
 
-  // 删除音色
+  // 删除音色 / Delete a voice model
   const handleDelete = async () => {
     if (!deleteTarget) return
     try {
@@ -295,14 +300,14 @@ export default function VoicePage() {
 
   return (
     <div className="min-h-screen" style={{ background: '#0a0a0f' }}>
-      {/* 背景光晕 */}
+      {/* 背景光晕 / Background glow orbs */}
       <div className="fixed top-0 left-0 w-full h-full pointer-events-none overflow-hidden">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-brand-purple/10 rounded-full blur-[120px]" />
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-brand-blue/10 rounded-full blur-[120px]" />
       </div>
 
       <div className="relative z-10 max-w-5xl mx-auto px-6 py-8">
-        {/* 顶部导航 */}
+        {/* 顶部导航 / Top navigation */}
         <div className="flex items-center gap-4 mb-8">
           <button
             onClick={() => navigate('/chat')}
@@ -316,7 +321,7 @@ export default function VoicePage() {
           </div>
         </div>
 
-        {/* 引擎选择 */}
+        {/* 引擎选择 / TTS engine selection */}
         <div className="glass-card p-4 mb-4">
           <p className="text-xs text-text-muted mb-3">选择 TTS 推理引擎</p>
           <div className="flex gap-3">
@@ -345,7 +350,7 @@ export default function VoicePage() {
           </div>
         </div>
 
-        {/* 上传区域 */}
+        {/* 上传区域 / Upload dropzone */}
         <div
           {...getRootProps()}
           className={`glass-card p-8 mb-8 border-dashed border-2 cursor-pointer transition-all duration-200 flex flex-col items-center gap-3 ${
@@ -372,7 +377,7 @@ export default function VoicePage() {
           </div>
         </div>
 
-        {/* 上传进度 */}
+        {/* 上传进度 / Upload progress */}
         <AnimatePresence>
           {uploadProgress && (
             <motion.div
@@ -409,7 +414,7 @@ export default function VoicePage() {
           )}
         </AnimatePresence>
 
-        {/* 音色列表 */}
+        {/* 音色列表 / Voice model list */}
         {isLoading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-8 h-8 animate-spin text-brand-purple" />
@@ -449,7 +454,7 @@ export default function VoicePage() {
         )}
       </div>
 
-      {/* 删除确认弹窗 */}
+      {/* 删除确认弹窗 / Delete confirmation dialog */}
       <AnimatePresence>
         {deleteTarget && (
           <DeleteConfirmDialog
@@ -460,7 +465,7 @@ export default function VoicePage() {
         )}
       </AnimatePresence>
 
-      {/* Toast 提示 */}
+      {/* Toast 提示 / Toast notification */}
       <AnimatePresence>
         {toast && (
           <motion.div

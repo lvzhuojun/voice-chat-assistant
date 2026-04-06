@@ -1,6 +1,8 @@
 """
 文件工具模块
 处理音色 ZIP 包的解压验证、路径生成等文件操作
+File utility module.
+Handles voice package ZIP extraction, validation, and path resolution.
 """
 
 import os
@@ -14,7 +16,7 @@ from backend.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# ZIP 包中必须包含的文件后缀
+# ZIP 包中必须包含的文件后缀 / Required file suffixes that must be present in the ZIP archive
 REQUIRED_FILE_SUFFIXES = {
     "_gpt.ckpt",
     "_sovits.pth",
@@ -28,6 +30,7 @@ REQUIRED_FILES = {
 def validate_voice_zip(zip_path: Path) -> tuple[bool, str, Optional[dict]]:
     """
     验证上传的音色 ZIP 包是否合法。
+    Validate an uploaded voice model ZIP archive.
 
     验证规则：
     1. 必须包含 metadata.json 和 reference.wav
@@ -35,15 +38,23 @@ def validate_voice_zip(zip_path: Path) -> tuple[bool, str, Optional[dict]]:
     3. metadata.json 必须包含 voice_id 字段
     4. base_model_version 必须是 GPT-SoVITS v2
 
+    Validation rules:
+    1. Must contain metadata.json and reference.wav
+    2. Must contain model files ending with _gpt.ckpt and _sovits.pth
+    3. metadata.json must include a voice_id field
+    4. base_model_version must be GPT-SoVITS v2
+
     Args:
-        zip_path: ZIP 文件路径
+        zip_path: ZIP 文件路径 / Path to the ZIP archive
 
     Returns:
         (是否合法, 错误信息/voice_id, metadata 字典)
+        / (is_valid, error_message_or_voice_id, metadata_dict)
     """
     try:
         with zipfile.ZipFile(zip_path, "r") as zf:
             # 获取所有文件名（去除目录前缀，只保留文件名部分）
+            # Collect all entry basenames, excluding directory entries
             names = [
                 os.path.basename(name)
                 for name in zf.namelist()
@@ -52,12 +63,14 @@ def validate_voice_zip(zip_path: Path) -> tuple[bool, str, Optional[dict]]:
             names_set = set(names)
 
             # 检查 metadata.json 和 reference.wav
+            # Verify that all required files are present
             for required in REQUIRED_FILES:
                 if required not in names_set:
                     return False, f"ZIP 中缺少必要文件：{required}", None
 
             # 读取并解析 metadata.json
             # 支持根目录或子目录
+            # Read and parse metadata.json, supporting both root-level and nested paths
             metadata_member = next(
                 (m for m in zf.namelist() if os.path.basename(m) == "metadata.json"),
                 None,
@@ -68,18 +81,18 @@ def validate_voice_zip(zip_path: Path) -> tuple[bool, str, Optional[dict]]:
             with zf.open(metadata_member) as f:
                 metadata = json.loads(f.read().decode("utf-8"))
 
-            # 检查必要字段
+            # 检查必要字段 / Verify that the required voice_id field exists
             if "voice_id" not in metadata:
                 return False, "metadata.json 缺少 voice_id 字段", None
 
             voice_id = metadata["voice_id"]
 
-            # 检查模型版本
+            # 检查模型版本 / Check base model version compatibility
             base_version = metadata.get("base_model_version", "")
             if base_version and "GPT-SoVITS v2" not in base_version:
                 logger.warning(f"音色 {voice_id} 版本为 {base_version}，可能不兼容")
 
-            # 检查 GPT 和 SoVITS 模型文件
+            # 检查 GPT 和 SoVITS 模型文件 / Verify GPT and SoVITS model files are present
             has_gpt = any(n.endswith("_gpt.ckpt") for n in names)
             has_sovits = any(n.endswith("_sovits.pth") for n in names)
 
@@ -102,17 +115,25 @@ def validate_voice_zip(zip_path: Path) -> tuple[bool, str, Optional[dict]]:
 def validate_voice_zip_cosyvoice(zip_path: Path) -> tuple[bool, str, Optional[dict]]:
     """
     验证 CosyVoice 2 音色 ZIP 包（只需 reference.wav + metadata.json，无需模型文件）。
+    Validate a CosyVoice 2 voice ZIP archive (requires only reference.wav + metadata.json,
+    no model weight files needed).
 
     验证规则：
     1. 必须包含 metadata.json 和 reference.wav
     2. metadata.json 必须包含 voice_id 字段
     3. 不要求 _gpt.ckpt / _sovits.pth
 
+    Validation rules:
+    1. Must contain metadata.json and reference.wav
+    2. metadata.json must include a voice_id field
+    3. _gpt.ckpt / _sovits.pth model files are not required
+
     Args:
-        zip_path: ZIP 文件路径
+        zip_path: ZIP 文件路径 / Path to the ZIP archive
 
     Returns:
         (是否合法, 错误信息/voice_id, metadata 字典)
+        / (is_valid, error_message_or_voice_id, metadata_dict)
     """
     try:
         with zipfile.ZipFile(zip_path, "r") as zf:
@@ -159,11 +180,14 @@ def extract_voice_zip(
 ) -> dict[str, str]:
     """
     解压音色 ZIP 包到目标目录，返回各文件的实际路径。
+    Extract a voice model ZIP archive into the target directory and return
+    the resolved paths for each extracted file.
 
     Args:
-        zip_path: ZIP 文件路径
+        zip_path: ZIP 文件路径 / Path to the ZIP archive
         target_dir: 目标目录（storage/voice_models/{user_id}/{voice_id}/）
-        voice_id: 音色 ID
+                    / Destination directory (storage/voice_models/{user_id}/{voice_id}/)
+        voice_id: 音色 ID / Voice model identifier
 
     Returns:
         dict: {
@@ -179,18 +203,18 @@ def extract_voice_zip(
     with zipfile.ZipFile(zip_path, "r") as zf:
         for member in zf.namelist():
             if member.endswith("/"):
-                continue  # 跳过目录条目
+                continue  # 跳过目录条目 / Skip directory entries
 
             basename = os.path.basename(member)
             dest_path = target_dir / basename
 
-            # 解压文件
+            # 解压文件 / Extract the file to the destination path
             with zf.open(member) as src, open(dest_path, "wb") as dst:
                 shutil.copyfileobj(src, dst)
 
             logger.debug(f"解压：{basename} -> {dest_path}")
 
-            # 记录路径
+            # 记录路径 / Record the resolved path for each known file type
             if basename.endswith("_gpt.ckpt"):
                 paths["gpt_model_path"] = str(dest_path)
             elif basename.endswith("_sovits.pth"):
@@ -207,11 +231,12 @@ def extract_voice_zip(
 def get_voice_model_dir(base_dir: Path, user_id: int, voice_id: str) -> Path:
     """
     获取音色模型的存储目录路径。
+    Resolve the storage directory path for a given voice model.
 
     Args:
-        base_dir: storage/voice_models 根目录
-        user_id: 用户 ID
-        voice_id: 音色 UUID
+        base_dir: storage/voice_models 根目录 / Root directory for voice model storage
+        user_id: 用户 ID / User identifier
+        voice_id: 音色 UUID / Voice model UUID
 
     Returns:
         Path: storage/voice_models/{user_id}/{voice_id}/
@@ -222,12 +247,13 @@ def get_voice_model_dir(base_dir: Path, user_id: int, voice_id: str) -> Path:
 def delete_voice_model_dir(model_dir: Path) -> bool:
     """
     删除音色模型目录（包含所有文件）。
+    Delete a voice model directory and all its contents.
 
     Args:
-        model_dir: 要删除的目录
+        model_dir: 要删除的目录 / Directory to delete
 
     Returns:
-        bool: 是否成功删除
+        bool: 是否成功删除 / True if deletion succeeded, False otherwise
     """
     try:
         if model_dir.exists():

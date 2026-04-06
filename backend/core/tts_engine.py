@@ -1,7 +1,10 @@
 """
 TTS（文字转语音）引擎模块
+TTS (Text-to-Speech) engine module.
 严格对接 voice-cloning-service（项目一）的 GPT-SoVITS 模型格式
+Strictly interfaces with the GPT-SoVITS model format from voice-cloning-service (Project 1).
 使用 LRU 缓存最多 3 个音色模型，避免 VRAM 溢出
+Uses LRU caching for at most 3 voice models to prevent VRAM overflow.
 """
 
 import asyncio
@@ -20,23 +23,30 @@ logger = get_logger(__name__)
 settings = get_settings()
 
 # TTS 模型缓存上限（最多同时加载 3 个音色，防止 VRAM 溢出）
+# TTS model cache limit (at most 3 voices loaded simultaneously to prevent VRAM overflow)
 MAX_CACHED_MODELS = 3
 
 # LRU 缓存：OrderedDict，key = voice_id，value = TTS 实例
+# LRU cache: OrderedDict where key = voice_id and value = TTS instance
 # 使用 OrderedDict 实现 LRU（最近最少使用淘汰）
+# Implements LRU (Least Recently Used eviction) via OrderedDict
 _model_cache: OrderedDict[str, object] = OrderedDict()
 # 并发 TTS 任务时保护缓存读写的线程锁
+# Thread lock protecting cache reads and writes under concurrent TTS tasks
 _model_cache_lock = threading.Lock()
 
 
 def _ensure_gptsovits_in_path() -> bool:
     """
     将 GPT-SoVITS 源码目录加入 sys.path，使 TTS_infer_pack 可导入。
+    Add the GPT-SoVITS source directory to sys.path so that TTS_infer_pack can be imported.
     TTS_infer_pack 位于 <gptsovits_dir>/GPT_SoVITS/TTS_infer_pack，
     因此需要将 <gptsovits_dir>/GPT_SoVITS 加入 sys.path。
+    TTS_infer_pack is located at <gptsovits_dir>/GPT_SoVITS/TTS_infer_pack,
+    so <gptsovits_dir>/GPT_SoVITS must be added to sys.path.
 
     Returns:
-        bool: 路径是否已成功加入
+        bool: 路径是否已成功加入 / Whether the path was successfully added
     """
     gptsovits_dir = Path(settings.gptsovits_dir).resolve()
     if not gptsovits_dir.exists():
@@ -47,6 +57,7 @@ def _ensure_gptsovits_in_path() -> bool:
         return False
 
     # TTS_infer_pack 位于 GPT-SoVITS/GPT_SoVITS/ 子目录下
+    # TTS_infer_pack resides under the GPT-SoVITS/GPT_SoVITS/ subdirectory
     infer_root = gptsovits_dir / "GPT_SoVITS"
     if not infer_root.exists():
         logger.error(
@@ -62,12 +73,15 @@ def _ensure_gptsovits_in_path() -> bool:
 
     # 还需要将父目录（GPT-SoVITS/）加入 sys.path，
     # 使 f5_tts 内部的 "from GPT_SoVITS.xxx import yyy" 可用（命名空间包）
+    # Also add the parent directory (GPT-SoVITS/) to sys.path so that
+    # "from GPT_SoVITS.xxx import yyy" inside f5_tts works (namespace package)
     gptsovits_parent_str = str(gptsovits_dir)
     if gptsovits_parent_str not in sys.path:
         sys.path.insert(0, gptsovits_parent_str)
         logger.debug(f"已将 GPT-SoVITS 父目录加入 sys.path：{gptsovits_parent_str}")
 
     # sv.py 里 "from ERes2NetV2 import ERes2NetV2" 需要 eres2net/ 在 sys.path
+    # sv.py requires eres2net/ in sys.path for "from ERes2NetV2 import ERes2NetV2"
     eres2net_dir = infer_root / "eres2net"
     if eres2net_dir.exists():
         eres2net_str = str(eres2net_dir)
@@ -84,18 +98,22 @@ def _load_tts_model(
 ) -> Optional[object]:
     """
     加载单个 GPT-SoVITS TTS 模型。
+    Load a single GPT-SoVITS TTS model.
 
     严格按照 voice-cloning-service 的加载方式实现：
+    Implemented strictly following the loading approach of voice-cloning-service:
     使用 TTS_Config "custom" 字段传入所有路径。
+    All paths are passed via the TTS_Config "custom" field.
 
     Args:
-        voice_id: 音色 UUID
+        voice_id: 音色 UUID / Voice UUID
         model_dir: 音色模型目录（storage/voice_models/{user_id}/{voice_id}/）
+                   / Voice model directory (storage/voice_models/{user_id}/{voice_id}/)
 
     Returns:
-        TTS 实例，加载失败返回 None
+        TTS 实例，加载失败返回 None / TTS instance; None if loading fails
     """
-    # 查找模型文件
+    # 查找模型文件 / Locate model files
     gpt_files = list(model_dir.glob(f"*_gpt.ckpt"))
     sovits_files = list(model_dir.glob(f"*_sovits.pth"))
 
@@ -110,13 +128,13 @@ def _load_tts_model(
     sovits_path = str(sovits_files[0])
 
     try:
-        # 确保 GPT-SoVITS 在 sys.path
+        # 确保 GPT-SoVITS 在 sys.path / Ensure GPT-SoVITS is in sys.path
         if not _ensure_gptsovits_in_path():
             return None
 
         from TTS_infer_pack.TTS import TTS, TTS_Config
 
-        # 按照项目一的标准加载方式
+        # 按照项目一的标准加载方式 / Load using the standard approach from Project 1
         config = TTS_Config({
             "custom": {
                 "device": "cuda",
@@ -146,19 +164,26 @@ def _load_tts_model(
 def get_tts_model(voice_id: str, model_dir: Path) -> Optional[object]:
     """
     获取 TTS 模型（带 LRU 缓存，最多缓存 3 个）。
+    Retrieve the TTS model (with LRU cache, at most 3 cached).
     使用 threading.Lock 保证并发 TTS 任务下缓存操作的线程安全。
+    Uses threading.Lock to ensure thread-safe cache operations under concurrent TTS tasks.
 
     缓存策略：
+    Caching strategy:
     - 命中缓存：将该 voice_id 移到末尾（最近使用），直接返回
+      Cache hit: move the voice_id to the end (most recently used) and return immediately
     - 未命中：锁外加载模型（避免长时间持锁），加载完成后再入缓存
+      Cache miss: load the model outside the lock (avoids holding the lock for a long time),
+      then insert into cache after loading
       - 若缓存已满（3个）：淘汰最早使用的（OrderedDict 头部）
+        If the cache is full (3 entries): evict the least recently used entry (head of OrderedDict)
 
     Args:
-        voice_id: 音色 UUID
-        model_dir: 音色模型目录
+        voice_id: 音色 UUID / Voice UUID
+        model_dir: 音色模型目录 / Voice model directory
 
     Returns:
-        TTS 实例，失败返回 None
+        TTS 实例，失败返回 None / TTS instance; None on failure
     """
     with _model_cache_lock:
         if voice_id in _model_cache:
@@ -167,6 +192,7 @@ def get_tts_model(voice_id: str, model_dir: Path) -> Optional[object]:
             return _model_cache[voice_id]
 
     # 未命中：在锁外加载（GPT-SoVITS 加载耗时较长，不能持锁等待）
+    # Cache miss: load outside the lock (GPT-SoVITS loading takes time and must not hold the lock)
     logger.info(f"TTS 模型缓存未命中，开始加载：{voice_id}")
     tts = _load_tts_model(voice_id, model_dir)
     if tts is None:
@@ -174,10 +200,11 @@ def get_tts_model(voice_id: str, model_dir: Path) -> Optional[object]:
 
     with _model_cache_lock:
         # 再次检查（避免两个线程同时 miss 后双重加载）
+        # Re-check to prevent double loading when two threads miss simultaneously
         if voice_id in _model_cache:
             _model_cache.move_to_end(voice_id)
             return _model_cache[voice_id]
-        # 缓存已满，淘汰最旧的
+        # 缓存已满，淘汰最旧的 / Cache is full; evict the oldest entry
         if len(_model_cache) >= MAX_CACHED_MODELS:
             evicted_id, _ = _model_cache.popitem(last=False)
             logger.info(f"TTS 模型缓存已满，淘汰：{evicted_id}")
@@ -198,39 +225,42 @@ async def synthesize_speech(
 ) -> Optional[bytes]:
     """
     使用 GPT-SoVITS 合成语音。
+    Synthesize speech using GPT-SoVITS.
 
     推理时必须使用 reference.wav 作为音色参考（项目一规范）。
+    reference.wav must be used as the voice reference during inference (Project 1 specification).
 
     Args:
-        text: 要合成的文字
-        voice_id: 音色 UUID
-        model_dir: 音色模型目录（含 reference.wav）
-        language: 语言（zh/en/auto，默认 zh）
+        text: 要合成的文字 / Text to synthesize
+        voice_id: 音色 UUID / Voice UUID
+        model_dir: 音色模型目录（含 reference.wav）/ Voice model directory (contains reference.wav)
+        language: 语言（zh/en/auto，默认 zh）/ Language (zh/en/auto, default: zh)
         speed_factor: 语速（1.0 正常，>1 加速，<1 减速）
-        temperature: 采样温度
-        top_k: Top-K 采样
-        top_p: Top-P 采样
+                      / Speech speed (1.0 normal, >1 faster, <1 slower)
+        temperature: 采样温度 / Sampling temperature
+        top_k: Top-K 采样 / Top-K sampling
+        top_p: Top-P 采样 / Top-P sampling
 
     Returns:
-        bytes: WAV 格式音频字节流，失败返回 None
+        bytes: WAV 格式音频字节流，失败返回 None / WAV-format audio byte stream; None on failure
     """
     if not text or not text.strip():
         logger.warning("TTS 输入文字为空，跳过合成")
         return None
 
-    # 检查 reference.wav
+    # 检查 reference.wav / Check for reference.wav
     ref_audio_path = model_dir / "reference.wav"
     if not ref_audio_path.exists():
         logger.error(f"音色 {voice_id} 缺少 reference.wav，路径：{ref_audio_path}")
         return None
 
-    # 获取 TTS 模型（LRU 缓存）
+    # 获取 TTS 模型（LRU 缓存）/ Retrieve TTS model (LRU cache)
     tts = get_tts_model(voice_id, model_dir)
     if tts is None:
         logger.error(f"无法加载 TTS 模型：{voice_id}")
         return None
 
-    # 语言映射（GPT-SoVITS 接受的格式）
+    # 语言映射（GPT-SoVITS 接受的格式）/ Language mapping (format accepted by GPT-SoVITS)
     lang_map = {
         "zh": "zh",
         "en": "en",
@@ -239,34 +269,37 @@ async def synthesize_speech(
     }
     text_lang = lang_map.get(language.lower(), "zh")
 
-    # 推理参数（与项目一的调用方式一致）
+    # 推理参数（与项目一的调用方式一致）/ Inference parameters (consistent with Project 1 invocation)
     infer_params = {
         "text": text.strip(),
         "text_lang": text_lang,
-        "ref_audio_path": str(ref_audio_path),  # 必须使用 reference.wav
+        "ref_audio_path": str(ref_audio_path),  # 必须使用 reference.wav / Must use reference.wav
         "prompt_lang": text_lang,
         "prompt_text": "",              # 参考文本（可选，留空使用原始参考音频）
+                                        # Reference text (optional; leave empty to use raw reference audio)
         "top_k": top_k,
         "top_p": top_p,
         "temperature": temperature,
         "text_split_method": "cut5",   # 按标点分割（适合中英文混合）
+                                       # Split by punctuation (suitable for Chinese/English mixed text)
         "batch_size": 1,
         "speed_factor": speed_factor,
-        "fragment_interval": 0.3,      # 分段间隔（秒）
-        "streaming_mode": False,       # 非流式，一次返回全部音频
-        "seed": -1,                    # 随机种子，-1 表示随机
-        "parallel_infer": True,        # 并行推理
-        "repetition_penalty": 1.35,    # 重复惩罚（与项目一一致）
+        "fragment_interval": 0.3,      # 分段间隔（秒）/ Segment interval (seconds)
+        "streaming_mode": False,       # 非流式，一次返回全部音频 / Non-streaming; returns all audio at once
+        "seed": -1,                    # 随机种子，-1 表示随机 / Random seed; -1 means random
+        "parallel_infer": True,        # 并行推理 / Parallel inference
+        "repetition_penalty": 1.35,    # 重复惩罚（与项目一一致）/ Repetition penalty (consistent with Project 1)
     }
 
     logger.debug(f"TTS 推理：text='{text[:50]}...' lang={text_lang} voice={voice_id}")
 
     def _run_inference() -> Optional[bytes]:
-        """在线程池中执行阻塞的 GPU 推理，避免占用 asyncio 事件循环。"""
+        """在线程池中执行阻塞的 GPU 推理，避免占用 asyncio 事件循环。
+        Execute blocking GPU inference in a thread pool to avoid blocking the asyncio event loop."""
         try:
             result_generator = tts.run(infer_params)
 
-            # 收集所有音频块并合并
+            # 收集所有音频块并合并 / Collect all audio chunks and merge them
             audio_segments = []
             sample_rate = None
 
@@ -279,7 +312,7 @@ async def synthesize_speech(
                 logger.error(f"TTS 推理未产生音频：{voice_id}")
                 return None
 
-            # 合并音频片段为 WAV bytes
+            # 合并音频片段为 WAV bytes / Merge audio segments into WAV bytes
             import numpy as np
             import soundfile as sf
 
@@ -308,10 +341,12 @@ async def synthesize_speech(
 def get_cached_model_count() -> int:
     """
     返回当前 TTS 模型缓存数量。
+    Return the current number of cached TTS models.
     用于健康检查接口。
+    Used by the health-check endpoint.
 
     Returns:
-        int: 已缓存的模型数
+        int: 已缓存的模型数 / Number of cached models
     """
     return len(_model_cache)
 
@@ -319,7 +354,9 @@ def get_cached_model_count() -> int:
 def clear_model_cache() -> None:
     """
     清空 TTS 模型缓存（释放 VRAM）。
+    Clear the TTS model cache (releases VRAM).
     通常不需要手动调用，但在内存紧张时可以调用。
+    Normally does not need to be called manually, but can be invoked when memory is tight.
     """
     _model_cache.clear()
     logger.info("TTS 模型缓存已清空")

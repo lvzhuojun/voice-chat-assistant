@@ -1,6 +1,8 @@
 """
 音色模型管理 API 路由
+Voice model management API routes.
 提供音色的导入、列表、详情、删除、选择和测试接口
+Provides endpoints for importing, listing, retrieving, deleting, selecting, and testing voice models.
 """
 
 import json
@@ -43,13 +45,16 @@ router = APIRouter(prefix="/api/voices", tags=["音色管理"])
 
 
 # Redis 客户端（懒加载，避免启动时连接失败）
+# Redis client (lazy-loaded to avoid connection failures at startup)
 _redis_client = None
 
 
 async def get_redis():
     """
     获取 Redis 客户端（单例）。
+    Retrieve the Redis client (singleton).
     如果 Redis 不可用，返回 None，相关功能降级处理。
+    Returns None if Redis is unavailable; dependent features degrade gracefully.
     """
     global _redis_client
     if _redis_client is None:
@@ -75,38 +80,42 @@ async def import_voice(
 ) -> VoiceModelResponse:
     """
     导入音色模型（上传 ZIP 包）。
+    Import a voice model by uploading a ZIP archive.
 
     engine=gptsovits（默认）时 ZIP 必须包含：
+    When engine=gptsovits (default), the ZIP must contain:
     - {voice_id}_gpt.ckpt
     - {voice_id}_sovits.pth
     - metadata.json
     - reference.wav
 
     engine=cosyvoice2 时 ZIP 只需包含：
+    When engine=cosyvoice2, the ZIP only needs to contain:
     - metadata.json
-    - reference.wav（用于零样本语音克隆）
+    - reference.wav（用于零样本语音克隆 / used for zero-shot voice cloning）
 
     处理流程：
-    1. 验证 ZIP 格式和文件完整性
-    2. 解压到 storage/voice_models/{user_id}/{voice_id}/
-    3. 写入数据库（含 tts_engine 字段）
+    Processing pipeline:
+    1. 验证 ZIP 格式和文件完整性 / Validate the ZIP format and file integrity
+    2. 解压到 storage/voice_models/{user_id}/{voice_id}/ / Extract to storage/voice_models/{user_id}/{voice_id}/
+    3. 写入数据库（含 tts_engine 字段） / Write to the database (including the tts_engine field)
 
     Args:
-        current_user: 当前登录用户
-        db: 数据库会话
-        file: 上传的 ZIP 文件
-        engine: TTS 引擎（gptsovits | cosyvoice2）
+        current_user: 当前登录用户 / Currently authenticated user
+        db: 数据库会话 / Database session
+        file: 上传的 ZIP 文件 / Uploaded ZIP file
+        engine: TTS 引擎（gptsovits | cosyvoice2） / TTS engine (gptsovits | cosyvoice2)
 
     Returns:
-        VoiceModelResponse: 创建的音色信息
+        VoiceModelResponse: 创建的音色信息 / Information about the newly created voice model
     """
-    # 校验 engine 参数
+    # 校验 engine 参数 / Validate the engine parameter
     if engine not in ("gptsovits", "cosyvoice2"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="engine 参数无效，支持：gptsovits、cosyvoice2",
         )
-    # 验证文件类型
+    # 验证文件类型 / Validate the uploaded file type
     if not file.filename or not file.filename.endswith(".zip"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -114,6 +123,7 @@ async def import_voice(
         )
 
     # 限制上传大小，防止超大文件耗尽内存
+    # Enforce upload size limit to prevent oversized files from exhausting memory
     max_bytes = settings.max_upload_size_mb * 1024 * 1024
     content = await file.read(max_bytes + 1)
     if len(content) > max_bytes:
@@ -122,13 +132,14 @@ async def import_voice(
             detail=f"文件过大，最大支持 {settings.max_upload_size_mb}MB",
         )
 
-    # 将上传的文件写入临时文件
+    # 将上传的文件写入临时文件 / Write the uploaded content to a temporary file
     with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as tmp:
         tmp_path = Path(tmp.name)
         tmp.write(content)
 
     try:
         # 验证 ZIP 内容（按引擎类型选择验证逻辑）
+        # Validate ZIP contents (use engine-specific validation logic)
         if engine == "cosyvoice2":
             is_valid, result_msg, metadata = validate_voice_zip_cosyvoice(tmp_path)
         else:
@@ -140,9 +151,10 @@ async def import_voice(
                 detail=f"ZIP 包验证失败：{result_msg}",
             )
 
-        voice_id = result_msg  # validate 成功时返回 voice_id
+        voice_id = result_msg  # validate 成功时返回 voice_id / Returns voice_id on successful validation
 
         # 检查此音色是否已导入（同一用户）
+        # Check whether this voice model has already been imported by the same user
         existing = await db.execute(
             select(VoiceModel).where(
                 VoiceModel.user_id == current_user.id,
@@ -155,7 +167,7 @@ async def import_voice(
                 detail=f"音色 {voice_id} 已存在，请删除后重新导入",
             )
 
-        # 解压到目标目录
+        # 解压到目标目录 / Extract the archive to the target directory
         target_dir = get_voice_model_dir(
             settings.voice_models_path,
             current_user.id,
@@ -163,11 +175,11 @@ async def import_voice(
         )
         paths = extract_voice_zip(tmp_path, target_dir, voice_id)
 
-        # 从 metadata 获取信息
+        # 从 metadata 获取信息 / Read voice metadata fields
         voice_name = metadata.get("voice_name", "未命名音色")
         language = metadata.get("language", "zh")
 
-        # 写入数据库
+        # 写入数据库 / Persist the voice model record to the database
         voice_model = VoiceModel(
             user_id=current_user.id,
             voice_id=voice_id,
@@ -190,7 +202,7 @@ async def import_voice(
         return VoiceModelResponse.model_validate(voice_model)
 
     finally:
-        # 清理临时文件
+        # 清理临时文件 / Clean up the temporary file
         if tmp_path.exists():
             tmp_path.unlink()
 
@@ -202,13 +214,14 @@ async def list_voices(
 ) -> list[VoiceModelListItem]:
     """
     获取当前用户的音色列表。
+    Retrieve the current user's voice model list.
 
     Args:
-        current_user: 当前登录用户
-        db: 数据库会话
+        current_user: 当前登录用户 / Currently authenticated user
+        db: 数据库会话 / Database session
 
     Returns:
-        list[VoiceModelListItem]: 音色列表（按创建时间倒序）
+        list[VoiceModelListItem]: 音色列表（按创建时间倒序） / Voice model list (ordered by creation time, descending)
     """
     result = await db.execute(
         select(VoiceModel)
@@ -226,16 +239,18 @@ async def get_current_voice(
 ) -> Optional[VoiceModelListItem]:
     """
     获取当前用户选择的音色信息。
+    Retrieve the voice model currently selected by the user.
     从 Redis 读取 voice_id，再查询数据库。
+    Reads the voice_id from Redis, then queries the database.
 
     Args:
-        current_user: 当前登录用户
-        db: 数据库会话
+        current_user: 当前登录用户 / Currently authenticated user
+        db: 数据库会话 / Database session
 
     Returns:
-        VoiceModelListItem: 当前音色信息
+        VoiceModelListItem: 当前音色信息 / Information about the currently selected voice model
     """
-    # 从 Redis 获取当前音色 ID
+    # 从 Redis 获取当前音色 ID / Retrieve the current voice ID from Redis
     redis = await get_redis()
     voice_id = None
     if redis:
@@ -246,7 +261,7 @@ async def get_current_voice(
             logger.warning(f"Redis 读取当前音色失败：{e}")
 
     if not voice_id:
-        # 没有选择，返回第一个可用音色
+        # 没有选择，返回第一个可用音色 / No selection found; fall back to the most recent active voice model
         result = await db.execute(
             select(VoiceModel)
             .where(VoiceModel.user_id == current_user.id, VoiceModel.is_active == True)
@@ -277,14 +292,15 @@ async def get_voice(
 ) -> VoiceModelResponse:
     """
     获取音色详情。
+    Retrieve detailed information for a specific voice model.
 
     Args:
-        voice_db_id: 音色数据库 ID
-        current_user: 当前登录用户
-        db: 数据库会话
+        voice_db_id: 音色数据库 ID / Voice model database ID
+        current_user: 当前登录用户 / Currently authenticated user
+        db: 数据库会话 / Database session
 
     Returns:
-        VoiceModelResponse: 音色详情
+        VoiceModelResponse: 音色详情 / Voice model details
     """
     result = await db.execute(
         select(VoiceModel).where(
@@ -309,14 +325,15 @@ async def delete_voice(
 ) -> SimpleMessageResponse:
     """
     删除音色（删除文件 + 数据库记录）。
+    Delete a voice model (removes both the files and the database record).
 
     Args:
-        voice_db_id: 音色数据库 ID
-        current_user: 当前登录用户
-        db: 数据库会话
+        voice_db_id: 音色数据库 ID / Voice model database ID
+        current_user: 当前登录用户 / Currently authenticated user
+        db: 数据库会话 / Database session
 
     Returns:
-        SimpleMessageResponse: 操作结果
+        SimpleMessageResponse: 操作结果 / Operation result
     """
     result = await db.execute(
         select(VoiceModel).where(
@@ -331,7 +348,7 @@ async def delete_voice(
             detail="音色不存在或无权访问",
         )
 
-    # 删除文件目录
+    # 删除文件目录 / Delete the voice model file directory
     model_dir = get_voice_model_dir(
         settings.voice_models_path,
         current_user.id,
@@ -340,6 +357,7 @@ async def delete_voice(
     delete_voice_model_dir(model_dir)
 
     # 清除 Redis 中的当前音色选择（如果是这个音色）
+    # Clear the current voice selection from Redis if it points to this voice model
     redis = await get_redis()
     if redis:
         try:
@@ -350,7 +368,7 @@ async def delete_voice(
         except Exception as e:
             logger.warning(f"清除 Redis 音色缓存失败：{e}")
 
-    # 删除数据库记录
+    # 删除数据库记录 / Delete the database record
     await db.delete(voice)
     await db.commit()
 
@@ -366,15 +384,17 @@ async def select_voice(
 ) -> VoiceSelectResponse:
     """
     设置当前使用的音色（存入 Redis）。
+    Set the currently active voice model (persisted in Redis).
     Redis 不可用时降级为只返回成功响应。
+    Degrades gracefully to returning a success response when Redis is unavailable.
 
     Args:
-        voice_db_id: 音色数据库 ID
-        current_user: 当前登录用户
-        db: 数据库会话
+        voice_db_id: 音色数据库 ID / Voice model database ID
+        current_user: 当前登录用户 / Currently authenticated user
+        db: 数据库会话 / Database session
 
     Returns:
-        VoiceSelectResponse: 操作结果
+        VoiceSelectResponse: 操作结果 / Operation result
     """
     result = await db.execute(
         select(VoiceModel).where(
@@ -391,11 +411,12 @@ async def select_voice(
         )
 
     # 存入 Redis（Key: user:{user_id}:current_voice，Value: voice_id）
+    # Store in Redis (key: user:{user_id}:current_voice, value: voice_id)
     redis = await get_redis()
     if redis:
         try:
             key = f"user:{current_user.id}:current_voice"
-            # 永不过期（用户主动选择）
+            # 永不过期（用户主动选择） / No expiry (user-initiated selection)
             await redis.set(key, voice.voice_id)
             logger.info(f"用户 {current_user.email} 设置当前音色：{voice.voice_name}")
         except Exception as e:
@@ -417,18 +438,21 @@ async def test_voice(
 ) -> Response:
     """
     测试音色合成（返回 WAV 音频）。
+    Test voice synthesis for a given voice model (returns a WAV audio response).
 
     合成一句固定测试文字，用于验证音色模型是否可用。
+    Synthesizes a fixed test sentence to verify that the voice model is functional.
     返回 audio/wav 格式的二进制音频数据。
+    Returns binary audio data with Content-Type: audio/wav.
 
     Args:
-        request: FastAPI Request 对象（限流器需要）
-        voice_db_id: 音色数据库 ID
-        current_user: 当前登录用户
-        db: 数据库会话
+        request: FastAPI Request 对象（限流器需要） / FastAPI Request object (required by the rate limiter)
+        voice_db_id: 音色数据库 ID / Voice model database ID
+        current_user: 当前登录用户 / Currently authenticated user
+        db: 数据库会话 / Database session
 
     Returns:
-        WAV 音频文件（Content-Type: audio/wav）
+        WAV 音频文件（Content-Type: audio/wav） / WAV audio file (Content-Type: audio/wav)
     """
     result = await db.execute(
         select(VoiceModel).where(
@@ -445,11 +469,13 @@ async def test_voice(
         )
 
     # 使用 reference_wav_path 确定模型目录（gpt_model_path 对 CosyVoice 为空）
+    # Derive the model directory from reference_wav_path (gpt_model_path is empty for CosyVoice)
     model_dir = Path(voice.reference_wav_path).parent
 
     test_text = f"你好，我是{voice.voice_name}，这是一段测试语音。"
 
     # 按引擎类型路由到对应的 TTS 实现
+    # Route to the appropriate TTS implementation based on the engine type
     if voice.tts_engine == "cosyvoice2":
         from backend.core.tts_engine_cosyvoice import synthesize_speech_cosyvoice
         wav_bytes = await synthesize_speech_cosyvoice(

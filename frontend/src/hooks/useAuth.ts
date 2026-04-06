@@ -1,6 +1,8 @@
 /**
  * 认证 Hook
+ * Authentication hook.
  * 封装登录、注册、登出逻辑
+ * Encapsulates login, register, and logout logic.
  */
 
 import { useState } from 'react'
@@ -14,7 +16,7 @@ export function useAuth() {
   const { setAuth, clearAuth, user, isAuthenticated } = useAuthStore()
   const navigate = useNavigate()
 
-  /** 登录 */
+  /** 登录 / Login */
   const login = async (email: string, password: string) => {
     setIsLoading(true)
     setError(null)
@@ -32,7 +34,7 @@ export function useAuth() {
     }
   }
 
-  /** 注册 */
+  /** 注册 / Register */
   const register = async (
     email: string,
     password: string,
@@ -54,7 +56,7 @@ export function useAuth() {
     }
   }
 
-  /** 登出 */
+  /** 登出 / Logout */
   const logout = () => {
     clearAuth()
     navigate('/login')

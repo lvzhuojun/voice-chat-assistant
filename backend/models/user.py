@@ -1,5 +1,6 @@
 """
 用户 ORM 模型
+User ORM model.
 """
 
 from datetime import datetime
@@ -14,6 +15,8 @@ class User(Base):
     """
     用户表。
     存储注册用户的基本信息和认证数据。
+    Users table.
+    Stores basic information and authentication data for registered users.
     """
 
     __tablename__ = "users"
@@ -29,7 +32,7 @@ class User(Base):
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
-    # 关联关系
+    # 关联关系 / Relationships
     voice_models: Mapped[list["VoiceModel"]] = relationship(  # noqa: F821
         "VoiceModel",
         back_populates="user",
