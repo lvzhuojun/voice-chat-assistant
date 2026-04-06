@@ -57,6 +57,9 @@ export function useWebSocket({ conversationId }: UseWebSocketProps): UseWebSocke
   // Sequential audio playback queue (for sentence-by-sentence TTS: enqueued by seq, played in order)
   const audioQueueRef = useRef<string[]>([])
   const isPlayingAudioRef = useRef(false)
+  // 当前正在播放的 Audio 实例（切换对话时需要 pause 中断）
+  // Currently playing Audio instance (must be paused when switching conversations)
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null)
 
   /** 播放单段 base64 WAV，返回 Promise（音频结束后 resolve） / Play a single base64 WAV segment, returns a Promise that resolves when playback ends */
   const playAudioData = useCallback((base64Data: string): Promise<void> => {
@@ -70,11 +73,14 @@ export function useWebSocket({ conversationId }: UseWebSocketProps): UseWebSocke
         const blob = new Blob([bytes], { type: 'audio/wav' })
         const url = URL.createObjectURL(blob)
         const audio = new Audio(url)
-        audio.onended = () => { URL.revokeObjectURL(url); resolve() }
-        audio.onerror = () => { URL.revokeObjectURL(url); resolve() }
-        audio.play().catch(() => resolve())
+        currentAudioRef.current = audio
+        const cleanup = () => { URL.revokeObjectURL(url); currentAudioRef.current = null; resolve() }
+        audio.onended = cleanup
+        audio.onerror = cleanup
+        audio.play().catch(() => cleanup())
       } catch (err) {
         console.error('音频播放失败:', err)
+        currentAudioRef.current = null
         resolve()
       }
     })
@@ -97,10 +103,17 @@ export function useWebSocket({ conversationId }: UseWebSocketProps): UseWebSocke
     drainAudioQueue()
   }, [drainAudioQueue])
 
-  /** 清空音频队列（切换对话/出错时调用） / Clear the audio queue (called on conversation switch or error) */
+  /** 清空音频队列并立即中断当前播放（切换对话/出错时调用）
+   *  Clear the audio queue and immediately stop the current audio (called on conversation switch or error) */
   const clearAudioQueue = useCallback(() => {
     audioQueueRef.current = []
     isPlayingAudioRef.current = false
+    // 中断正在播放的 Audio 实例，避免切换对话后旧音频继续播放
+    // Abort the in-progress Audio instance so old audio doesn't bleed into the new conversation
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause()
+      currentAudioRef.current = null
+    }
   }, [])
 
   // 处理服务端消息 / Handle incoming server messages
@@ -282,6 +295,7 @@ export function useWebSocket({ conversationId }: UseWebSocketProps): UseWebSocke
 
     return () => {
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current)
+      if (wsErrorTimerRef.current) clearTimeout(wsErrorTimerRef.current)
       clearAudioQueue()
       const ws = wsRef.current
       wsRef.current = null

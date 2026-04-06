@@ -173,7 +173,16 @@ async def import_voice(
             current_user.id,
             voice_id,
         )
-        paths = extract_voice_zip(tmp_path, target_dir, voice_id)
+        try:
+            paths = extract_voice_zip(tmp_path, target_dir, voice_id)
+        except Exception as e:
+            # 解压失败时清理已创建的目录，避免残留孤儿文件
+            # Clean up the partially-created directory on extraction failure to avoid orphaned files
+            delete_voice_model_dir(target_dir)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"音色解压失败：{e}",
+            ) from e
 
         # 从 metadata 获取信息 / Read voice metadata fields
         voice_name = metadata.get("voice_name", "未命名音色")

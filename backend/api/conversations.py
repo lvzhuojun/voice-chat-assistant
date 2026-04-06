@@ -8,7 +8,7 @@ Provides CRUD operations for conversations and message retrieval endpoints.
 from typing import Annotated
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
@@ -24,6 +24,7 @@ from backend.schemas.schemas import (
     MessageResponse,
     SimpleMessageResponse,
 )
+from backend.core.limiter import limiter
 from backend.core.security import get_current_user
 from backend.core.llm_client import clear_conversation_context
 from backend.utils.logger import get_logger
@@ -85,8 +86,10 @@ async def list_conversations(
 
 
 @router.post("", response_model=ConversationResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("60/hour")
 async def create_conversation(
-    request: ConversationCreateRequest,
+    request: Request,
+    body: ConversationCreateRequest,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> ConversationResponse:
@@ -104,8 +107,8 @@ async def create_conversation(
     """
     conversation = Conversation(
         user_id=current_user.id,
-        title=request.title or "新对话",
-        voice_model_id=request.voice_model_id,
+        title=body.title or "新对话",
+        voice_model_id=body.voice_model_id,
     )
     db.add(conversation)
     await db.commit()

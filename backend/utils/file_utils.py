@@ -6,6 +6,7 @@ Handles voice package ZIP extraction, validation, and path resolution.
 """
 
 import os
+import re
 import json
 import zipfile
 import shutil
@@ -15,6 +16,14 @@ from typing import Optional
 from backend.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+# voice_id 合法字符：仅允许 UUID / slug 格式，阻止路径穿越
+# Allowed characters for voice_id: UUID/slug only, prevents path traversal
+_SAFE_VOICE_ID_RE = re.compile(r'^[a-zA-Z0-9_\-]{1,128}$')
+
+# ZIP bomb 防护：解压后总大小上限（500 MB）
+# ZIP bomb protection: maximum total uncompressed size (500 MB)
+_MAX_UNCOMPRESSED_BYTES = 500 * 1024 * 1024
 
 # ZIP 包中必须包含的文件后缀 / Required file suffixes that must be present in the ZIP archive
 REQUIRED_FILE_SUFFIXES = {
@@ -53,6 +62,15 @@ def validate_voice_zip(zip_path: Path) -> tuple[bool, str, Optional[dict]]:
     """
     try:
         with zipfile.ZipFile(zip_path, "r") as zf:
+            # ZIP bomb 防护：累加解压后大小，超限直接拒绝
+            # ZIP bomb protection: accumulate uncompressed sizes and reject if over limit
+            total_uncompressed = sum(info.file_size for info in zf.infolist())
+            if total_uncompressed > _MAX_UNCOMPRESSED_BYTES:
+                return False, (
+                    f"ZIP 解压后总大小 {total_uncompressed // 1024 // 1024}MB"
+                    f" 超过上限 {_MAX_UNCOMPRESSED_BYTES // 1024 // 1024}MB"
+                ), None
+
             # 获取所有文件名（去除目录前缀，只保留文件名部分）
             # Collect all entry basenames, excluding directory entries
             names = [
@@ -86,6 +104,13 @@ def validate_voice_zip(zip_path: Path) -> tuple[bool, str, Optional[dict]]:
                 return False, "metadata.json 缺少 voice_id 字段", None
 
             voice_id = metadata["voice_id"]
+
+            # 路径穿越防护：voice_id 只允许安全字符
+            # Path traversal protection: voice_id must contain only safe characters
+            if not _SAFE_VOICE_ID_RE.match(str(voice_id)):
+                return False, (
+                    "voice_id 包含非法字符，只允许字母、数字、连字符和下划线"
+                ), None
 
             # 检查模型版本 / Check base model version compatibility
             base_version = metadata.get("base_model_version", "")
@@ -137,6 +162,14 @@ def validate_voice_zip_cosyvoice(zip_path: Path) -> tuple[bool, str, Optional[di
     """
     try:
         with zipfile.ZipFile(zip_path, "r") as zf:
+            # ZIP bomb 防护 / ZIP bomb protection
+            total_uncompressed = sum(info.file_size for info in zf.infolist())
+            if total_uncompressed > _MAX_UNCOMPRESSED_BYTES:
+                return False, (
+                    f"ZIP 解压后总大小 {total_uncompressed // 1024 // 1024}MB"
+                    f" 超过上限 {_MAX_UNCOMPRESSED_BYTES // 1024 // 1024}MB"
+                ), None
+
             names = [
                 os.path.basename(name)
                 for name in zf.namelist()
@@ -162,6 +195,13 @@ def validate_voice_zip_cosyvoice(zip_path: Path) -> tuple[bool, str, Optional[di
                 return False, "metadata.json 缺少 voice_id 字段", None
 
             voice_id = metadata["voice_id"]
+
+            # 路径穿越防护 / Path traversal protection
+            if not _SAFE_VOICE_ID_RE.match(str(voice_id)):
+                return False, (
+                    "voice_id 包含非法字符，只允许字母、数字、连字符和下划线"
+                ), None
+
             return True, voice_id, metadata
 
     except zipfile.BadZipFile:
