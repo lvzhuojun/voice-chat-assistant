@@ -6,7 +6,6 @@ channels:
   - defaults
 dependencies:
   - python=3.10
-  - nodejs>=20
   - pip
   # lzma support (required for transformers on Windows; missing in some conda envs)
   - conda-forge::liblzma

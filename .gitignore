@@ -25,7 +25,10 @@ frontend/.env
 # Models & Storage (大文件，不入库)
 storage/*
 !storage/.gitkeep
+GPT_SoVITS/
 GPT-SoVITS/
+CosyVoice/
+=*
 *.ckpt
 *.pth
 *.safetensors

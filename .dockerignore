@@ -4,7 +4,10 @@
 *.pem
 
 # 大型目录（通过 volume 挂载，不打包进镜像）
+# Large directories — mounted as volumes, never baked into the image
 GPT_SoVITS/
+GPT-SoVITS/
+CosyVoice/
 storage/
 
 # 前端构建产物和依赖（由 Dockerfile 内部安装）

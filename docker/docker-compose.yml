@@ -56,14 +56,16 @@ services:
       LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
       WHISPER_MODEL_SIZE: ${WHISPER_MODEL_SIZE:-medium}
       WHISPER_DEVICE: cuda
-      GPTSOVITS_DIR: /app/GPT-SoVITS
+      GPTSOVITS_DIR: /app/GPT_SoVITS
       VOICE_MODELS_DIR: /app/storage/voice_models
-      PRETRAINED_MODELS_DIR: /app/storage/pretrained_models/GPT-SoVITS
+      PRETRAINED_MODELS_DIR: /app/storage/pretrained_models/GPT_SoVITS
       STORAGE_DIR: /app/storage
+      COSYVOICE_DIR: /app/CosyVoice
     volumes:
       # 挂载模型文件（不打包进镜像）
       - ../storage:/app/storage
-      - ../GPT-SoVITS:/app/GPT-SoVITS:ro
+      - ../GPT_SoVITS:/app/GPT_SoVITS:ro
+      - ../CosyVoice:/app/CosyVoice:ro
     ports:
       - "8000:8000"
     deploy:
