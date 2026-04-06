@@ -1,6 +1,6 @@
 """
 音色模型 ORM 模型
-存储从 voice-cloning-service 导入的 GPT-SoVITS 音色信息
+存储导入的音色信息，支持 GPT-SoVITS（gptsovits）和 CosyVoice 2（cosyvoice2）两种推理引擎
 """
 
 from datetime import datetime
@@ -33,9 +33,16 @@ class VoiceModel(Base):
     voice_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)  # UUID
     language: Mapped[str] = mapped_column(String(10), nullable=False, default="zh")
 
+    # TTS 推理引擎（gptsovits | cosyvoice2）
+    # CosyVoice 2 使用共享基础模型+参考音频，无需专属模型文件
+    tts_engine: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="gptsovits", server_default="gptsovits"
+    )
+
     # 模型文件路径（相对于项目根目录）
-    gpt_model_path: Mapped[str] = mapped_column(String(512), nullable=False)
-    sovits_model_path: Mapped[str] = mapped_column(String(512), nullable=False)
+    # CosyVoice 2 音色的 gpt_model_path / sovits_model_path 为空字符串
+    gpt_model_path: Mapped[str] = mapped_column(String(512), nullable=False, default="", server_default="")
+    sovits_model_path: Mapped[str] = mapped_column(String(512), nullable=False, default="", server_default="")
     reference_wav_path: Mapped[str] = mapped_column(String(512), nullable=False)
 
     # 原始 metadata.json 内容（JSON 字段，保留完整训练信息）

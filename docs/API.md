@@ -129,8 +129,9 @@ Get the current authenticated user. **Requires auth.**
 
 Upload a voice ZIP package. **Requires auth.**
 
-The ZIP must contain these four files at the root level (no subdirectories):
+Supports two TTS engines selected via the `engine` query parameter:
 
+**`engine=gptsovits`** (default) — ZIP must contain:
 ```
 <voice_id>_gpt.ckpt
 <voice_id>_sovits.pth
@@ -138,11 +139,24 @@ metadata.json
 reference.wav
 ```
 
+**`engine=cosyvoice2`** — ZIP only needs:
+```
+metadata.json
+reference.wav
+```
+CosyVoice 2 uses a single shared base model; no per-voice trained models are required.
+
 **Request** `multipart/form-data`:
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `file` | File (`.zip`) | Voice model archive |
+
+**Query parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `engine` | `string` | `gptsovits` | TTS engine: `gptsovits` or `cosyvoice2` |
 
 **Response** `201 Created`:
 
@@ -152,6 +166,7 @@ reference.wav
   "voice_id": "550e8400-e29b-41d4-a716-446655440000",
   "voice_name": "My Voice",
   "language": "zh",
+  "tts_engine": "gptsovits",
   "gpt_model_path": "storage/voice_models/1/550e8400-.../..._gpt.ckpt",
   "sovits_model_path": "storage/voice_models/1/550e8400-.../..._sovits.pth",
   "reference_wav_path": "storage/voice_models/1/550e8400-.../reference.wav",
@@ -183,6 +198,7 @@ List all voice models belonging to the current user. **Requires auth.**
     "voice_id": "550e8400-...",
     "voice_name": "My Voice",
     "language": "zh",
+    "tts_engine": "gptsovits",
     "created_at": "2024-01-01T00:00:00Z",
     "is_active": true,
     "metadata_json": { "..." : "..." }

@@ -9,6 +9,34 @@ Version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 
 ## [Unreleased]
 
+### Added
+
+- **双 TTS 引擎支持（GPT-SoVITS v2 + CosyVoice 2）** —
+  - `backend/core/tts_engine_cosyvoice.py`：CosyVoice 2 推理引擎，单例全局模型 +
+    per-voice speaker prompt 缓存（线程安全懒加载，首次推理后缓存 reference.wav tensor）
+  - `backend/models/voice_model.py`：新增 `tts_engine` 列（`gptsovits`/`cosyvoice2`，
+    默认 `gptsovits`，存量数据向后兼容）
+  - `backend/alembic/versions/20260405_0001_add_tts_engine.py`：对应数据库迁移
+  - `POST /api/voices/import`：新增 `engine` 查询参数（`gptsovits`|`cosyvoice2`）；
+    CosyVoice 2 音色 ZIP 只需 `reference.wav` + `metadata.json`，无需训练模型文件
+  - `backend/core/pipeline.py`：`_llm_tts_pipeline` 新增 `tts_engine` 参数，
+    按引擎路由到对应 `synthesize_speech` / `synthesize_speech_cosyvoice`
+  - `backend/config.py`：新增 `cosyvoice_dir` 配置项（默认 `./CosyVoice`）
+  - `frontend/src/types/index.ts`：新增 `TtsEngine` 类型，`VoiceModel` 添加 `tts_engine` 字段
+  - `frontend/src/pages/VoicePage.tsx`：上传区域新增引擎选择（双按钮切换），
+    音色卡片按引擎类型显示对应徽章（GPT-SoVITS v2 / CosyVoice 2）
+  - `frontend/src/api/voices.ts`：`importVoice` 新增 `engine` 参数
+
+### Changed
+
+- `backend/api/ws.py`：`voice_model_dir` 改为从 `reference_wav_path` 推导
+  （原来用 `gpt_model_path.parent`，CosyVoice 2 音色的该字段为空）
+- `docs/API.md`：`POST /api/voices/import` 文档补充 `engine` 参数和 CosyVoice 2 ZIP 格式说明；
+  所有音色响应体增加 `tts_engine` 字段说明
+
+---
+
+
 ### Fixed
 
 - **`pipeline` — TTS 不再等待 LLM 完全结束才开始合成（首音延迟从 8~15s 降至 2~4s）** —

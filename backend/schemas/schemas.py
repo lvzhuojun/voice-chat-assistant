@@ -62,6 +62,7 @@ class VoiceModelResponse(BaseModel):
     voice_id: str
     voice_name: str
     language: str
+    tts_engine: str = "gptsovits"
     gpt_model_path: str
     sovits_model_path: str
     reference_wav_path: str
@@ -78,6 +79,7 @@ class VoiceModelListItem(BaseModel):
     voice_id: str
     voice_name: str
     language: str
+    tts_engine: str = "gptsovits"
     created_at: datetime
     is_active: bool
     metadata_json: Optional[dict[str, Any]] = None

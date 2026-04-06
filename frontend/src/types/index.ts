@@ -26,12 +26,16 @@ export interface AuthResponse {
 // 音色相关
 // ─────────────────────────────────────────────
 
+/** TTS 推理引擎类型 */
+export type TtsEngine = 'gptsovits' | 'cosyvoice2'
+
 /** 音色列表项 */
 export interface VoiceModel {
   id: number
   voice_id: string
   voice_name: string
   language: string
+  tts_engine: TtsEngine
   created_at: string
   is_active: boolean
   metadata_json?: Record<string, unknown>

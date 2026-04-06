@@ -99,6 +99,59 @@ def validate_voice_zip(zip_path: Path) -> tuple[bool, str, Optional[dict]]:
         return False, f"验证失败：{str(e)}", None
 
 
+def validate_voice_zip_cosyvoice(zip_path: Path) -> tuple[bool, str, Optional[dict]]:
+    """
+    验证 CosyVoice 2 音色 ZIP 包（只需 reference.wav + metadata.json，无需模型文件）。
+
+    验证规则：
+    1. 必须包含 metadata.json 和 reference.wav
+    2. metadata.json 必须包含 voice_id 字段
+    3. 不要求 _gpt.ckpt / _sovits.pth
+
+    Args:
+        zip_path: ZIP 文件路径
+
+    Returns:
+        (是否合法, 错误信息/voice_id, metadata 字典)
+    """
+    try:
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            names = [
+                os.path.basename(name)
+                for name in zf.namelist()
+                if not name.endswith("/")
+            ]
+            names_set = set(names)
+
+            for required in REQUIRED_FILES:
+                if required not in names_set:
+                    return False, f"ZIP 中缺少必要文件：{required}", None
+
+            metadata_member = next(
+                (m for m in zf.namelist() if os.path.basename(m) == "metadata.json"),
+                None,
+            )
+            if not metadata_member:
+                return False, "无法找到 metadata.json", None
+
+            with zf.open(metadata_member) as f:
+                metadata = json.loads(f.read().decode("utf-8"))
+
+            if "voice_id" not in metadata:
+                return False, "metadata.json 缺少 voice_id 字段", None
+
+            voice_id = metadata["voice_id"]
+            return True, voice_id, metadata
+
+    except zipfile.BadZipFile:
+        return False, "上传的文件不是有效的 ZIP 格式", None
+    except json.JSONDecodeError:
+        return False, "metadata.json 格式错误，无法解析 JSON", None
+    except Exception as e:
+        logger.error(f"验证 CosyVoice ZIP 包时发生错误: {e}")
+        return False, f"验证失败：{str(e)}", None
+
+
 def extract_voice_zip(
     zip_path: Path,
     target_dir: Path,

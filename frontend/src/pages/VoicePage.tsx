@@ -18,10 +18,11 @@ import {
   Calendar,
   Layers,
   AlertTriangle,
+  Cpu,
 } from 'lucide-react'
 import { useVoiceStore } from '@/store/voiceStore'
 import * as voiceApi from '@/api/voices'
-import type { VoiceModel, UploadProgress } from '@/types'
+import type { VoiceModel, UploadProgress, TtsEngine } from '@/types'
 
 /** 删除确认弹窗 */
 function DeleteConfirmDialog({
@@ -146,13 +147,20 @@ function VoiceCard({ voice, isSelected, onSelect, onDelete }, ref) {
           <Globe className="w-3 h-3" />
           {voice.language === 'zh' ? '中文' : voice.language === 'en' ? '英文' : voice.language}
         </span>
-        <span className="inline-flex items-center gap-1 text-xs bg-brand-purple/10 text-brand-purple px-2 py-0.5 rounded-full">
-          GPT-SoVITS v2
-        </span>
+        {voice.tts_engine === 'cosyvoice2' ? (
+          <span className="inline-flex items-center gap-1 text-xs bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded-full">
+            <Cpu className="w-3 h-3" />
+            CosyVoice 2
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 text-xs bg-brand-purple/10 text-brand-purple px-2 py-0.5 rounded-full">
+            GPT-SoVITS v2
+          </span>
+        )}
       </div>
 
-      {/* 模型信息 */}
-      {(gptEpochs || sovitsEpochs) && (
+      {/* GPT-SoVITS 训练轮次信息 */}
+      {voice.tts_engine !== 'cosyvoice2' && (gptEpochs || sovitsEpochs) && (
         <div className="flex items-center gap-1 text-xs text-text-muted mb-2">
           <Layers className="w-3 h-3" />
           <span>GPT: {gptEpochs ?? '-'}轮 · SoVITS: {sovitsEpochs ?? '-'}轮</span>
@@ -191,6 +199,7 @@ export default function VoicePage() {
   const [deleteTarget, setDeleteTarget] = useState<VoiceModel | null>(null)
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null)
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
+  const [selectedEngine, setSelectedEngine] = useState<TtsEngine>('gptsovits')
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type })
@@ -223,7 +232,7 @@ export default function VoicePage() {
     try {
       const res = await voiceApi.importVoice(file, (p) => {
         setUploadProgress((prev) => prev ? { ...prev, progress: p } : null)
-      })
+      }, selectedEngine)
       setUploadProgress({ filename: file.name, progress: 100, status: 'success' })
       addVoice(res.data)
 
@@ -249,7 +258,7 @@ export default function VoicePage() {
       showToast(msg, 'error')
       setTimeout(() => setUploadProgress(null), 4000)
     }
-  }, [addVoice, currentVoice, setCurrentVoice])
+  }, [addVoice, currentVoice, setCurrentVoice, selectedEngine])
 
   // Dropzone 配置
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -303,7 +312,36 @@ export default function VoicePage() {
           </button>
           <div>
             <h1 className="text-2xl font-bold text-text-primary">音色管理</h1>
-            <p className="text-text-secondary text-sm">管理并选择您的 GPT-SoVITS 音色</p>
+            <p className="text-text-secondary text-sm">管理并选择您的音色（支持 GPT-SoVITS v2 和 CosyVoice 2）</p>
+          </div>
+        </div>
+
+        {/* 引擎选择 */}
+        <div className="glass-card p-4 mb-4">
+          <p className="text-xs text-text-muted mb-3">选择 TTS 推理引擎</p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setSelectedEngine('gptsovits')}
+              className={`flex-1 py-2.5 px-4 rounded-xl border text-sm font-medium transition-all duration-150 text-left ${
+                selectedEngine === 'gptsovits'
+                  ? 'border-brand-purple/60 bg-brand-purple/10 text-brand-purple'
+                  : 'border-white/10 text-text-secondary hover:border-white/20 hover:bg-white/5'
+              }`}
+            >
+              <div className="font-semibold mb-0.5">GPT-SoVITS v2</div>
+              <div className="text-xs opacity-70">需训练专属模型，音色还原度高</div>
+            </button>
+            <button
+              onClick={() => setSelectedEngine('cosyvoice2')}
+              className={`flex-1 py-2.5 px-4 rounded-xl border text-sm font-medium transition-all duration-150 text-left ${
+                selectedEngine === 'cosyvoice2'
+                  ? 'border-blue-500/60 bg-blue-500/10 text-blue-400'
+                  : 'border-white/10 text-text-secondary hover:border-white/20 hover:bg-white/5'
+              }`}
+            >
+              <div className="font-semibold mb-0.5">CosyVoice 2</div>
+              <div className="text-xs opacity-70">零样本克隆，只需参考音频</div>
+            </button>
           </div>
         </div>
 
@@ -327,7 +365,9 @@ export default function VoicePage() {
               {isDragActive ? '松开即可上传' : '拖拽 ZIP 文件到这里'}
             </p>
             <p className="text-text-secondary text-sm mt-1">
-              或点击选择文件 · 支持来自 voice-cloning-service 导出的音色包
+              {selectedEngine === 'cosyvoice2'
+                ? '或点击选择文件 · ZIP 包含 reference.wav + metadata.json 即可'
+                : '或点击选择文件 · 支持来自 voice-cloning-service 导出的音色包'}
             </p>
           </div>
         </div>

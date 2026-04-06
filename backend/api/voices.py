@@ -29,6 +29,7 @@ from backend.core.security import get_current_user
 from backend.config import get_settings
 from backend.utils.file_utils import (
     validate_voice_zip,
+    validate_voice_zip_cosyvoice,
     extract_voice_zip,
     get_voice_model_dir,
     delete_voice_model_dir,
@@ -70,29 +71,41 @@ async def import_voice(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
     file: UploadFile = File(..., description="音色 ZIP 包"),
+    engine: str = "gptsovits",
 ) -> VoiceModelResponse:
     """
     导入音色模型（上传 ZIP 包）。
 
-    ZIP 包必须包含：
+    engine=gptsovits（默认）时 ZIP 必须包含：
     - {voice_id}_gpt.ckpt
     - {voice_id}_sovits.pth
     - metadata.json
     - reference.wav
 
+    engine=cosyvoice2 时 ZIP 只需包含：
+    - metadata.json
+    - reference.wav（用于零样本语音克隆）
+
     处理流程：
     1. 验证 ZIP 格式和文件完整性
     2. 解压到 storage/voice_models/{user_id}/{voice_id}/
-    3. 写入数据库
+    3. 写入数据库（含 tts_engine 字段）
 
     Args:
         current_user: 当前登录用户
         db: 数据库会话
         file: 上传的 ZIP 文件
+        engine: TTS 引擎（gptsovits | cosyvoice2）
 
     Returns:
         VoiceModelResponse: 创建的音色信息
     """
+    # 校验 engine 参数
+    if engine not in ("gptsovits", "cosyvoice2"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="engine 参数无效，支持：gptsovits、cosyvoice2",
+        )
     # 验证文件类型
     if not file.filename or not file.filename.endswith(".zip"):
         raise HTTPException(
@@ -115,8 +128,12 @@ async def import_voice(
         tmp.write(content)
 
     try:
-        # 验证 ZIP 内容
-        is_valid, result_msg, metadata = validate_voice_zip(tmp_path)
+        # 验证 ZIP 内容（按引擎类型选择验证逻辑）
+        if engine == "cosyvoice2":
+            is_valid, result_msg, metadata = validate_voice_zip_cosyvoice(tmp_path)
+        else:
+            is_valid, result_msg, metadata = validate_voice_zip(tmp_path)
+
         if not is_valid:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -156,6 +173,7 @@ async def import_voice(
             voice_id=voice_id,
             voice_name=voice_name,
             language=language,
+            tts_engine=engine,
             gpt_model_path=paths.get("gpt_model_path", ""),
             sovits_model_path=paths.get("sovits_model_path", ""),
             reference_wav_path=paths.get("reference_wav_path", ""),

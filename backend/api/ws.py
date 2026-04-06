@@ -226,8 +226,8 @@ async def websocket_chat(
                     })
                     continue
 
-                # 音色模型目录
-                voice_model_dir = Path(voice.gpt_model_path).parent
+                # 音色模型目录（reference.wav 始终存在，无论哪种引擎）
+                voice_model_dir = Path(voice.reference_wav_path).parent
 
                 # ── 处理音频帧 ────────────────────────────────
                 if is_binary:
@@ -245,6 +245,7 @@ async def websocket_chat(
                         voice_model_dir=voice_model_dir,
                         voice_language=voice.language,
                         send_message=send_json,
+                        tts_engine=getattr(voice, "tts_engine", "gptsovits"),
                     )
 
                     if transcript and reply_text:
@@ -316,6 +317,7 @@ async def websocket_chat(
                             voice_model_dir=voice_model_dir,
                             voice_language=voice.language,
                             send_message=send_json,
+                            tts_engine=getattr(voice, "tts_engine", "gptsovits"),
                         )
 
                         if reply_text:

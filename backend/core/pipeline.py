@@ -19,6 +19,7 @@ from typing import Callable, Awaitable, Optional
 from backend.core.stt_engine import transcribe_audio
 from backend.core.llm_client import stream_chat
 from backend.core.tts_engine import synthesize_speech
+from backend.core.tts_engine_cosyvoice import synthesize_speech_cosyvoice
 from backend.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -63,6 +64,7 @@ async def process_audio_message(
     voice_model_dir: Path,
     voice_language: str,
     send_message: SendCallback,
+    tts_engine: str = "gptsovits",
 ) -> tuple[Optional[str], Optional[str]]:
     """
     处理音频输入消息，执行完整的 STT→LLM→TTS 管道。
@@ -117,6 +119,7 @@ async def process_audio_message(
         voice_model_dir=voice_model_dir,
         voice_language=voice_language,
         send_message=send_message,
+        tts_engine=tts_engine,
     )
 
     if full_reply is None:
@@ -132,6 +135,7 @@ async def process_text_message(
     voice_model_dir: Path,
     voice_language: str,
     send_message: SendCallback,
+    tts_engine: str = "gptsovits",
 ) -> Optional[str]:
     """
     处理文字输入消息，执行 LLM→TTS 管道（跳过 STT）。
@@ -156,6 +160,7 @@ async def process_text_message(
         voice_model_dir=voice_model_dir,
         voice_language=voice_language,
         send_message=send_message,
+        tts_engine=tts_engine,
     )
 
     return full_reply
@@ -168,6 +173,7 @@ async def _llm_tts_pipeline(
     voice_model_dir: Path,
     voice_language: str,
     send_message: SendCallback,
+    tts_engine: str = "gptsovits",
 ) -> tuple[Optional[str], int]:
     """
     LLM 流式生成 + 并行 TTS 核心管道。
@@ -185,6 +191,7 @@ async def _llm_tts_pipeline(
         voice_model_dir: 音色模型目录
         voice_language: 语言
         send_message: WebSocket 发送回调
+        tts_engine: TTS 引擎（"gptsovits" 或 "cosyvoice2"）
 
     Returns:
         (full_reply, audio_sent_count)
@@ -194,6 +201,26 @@ async def _llm_tts_pipeline(
     # 每个元素：(seq编号, asyncio.Task[Optional[bytes]])
     tts_tasks: list[tuple[int, asyncio.Task]] = []
     seq = 0
+
+    def _make_tts_task(sentence: str) -> asyncio.Task:
+        """根据 tts_engine 创建对应的 TTS 异步任务。"""
+        if tts_engine == "cosyvoice2":
+            return asyncio.create_task(
+                synthesize_speech_cosyvoice(
+                    text=sentence,
+                    voice_id=voice_id,
+                    model_dir=voice_model_dir,
+                    language=voice_language,
+                )
+            )
+        return asyncio.create_task(
+            synthesize_speech(
+                text=sentence,
+                voice_id=voice_id,
+                model_dir=voice_model_dir,
+                language=voice_language,
+            )
+        )
 
     try:
         async for chunk in stream_chat(
@@ -208,28 +235,12 @@ async def _llm_tts_pipeline(
             completed, sentence_buffer = _extract_sentences(sentence_buffer)
             for sentence in completed:
                 if sentence.strip():
-                    task = asyncio.create_task(
-                        synthesize_speech(
-                            text=sentence.strip(),
-                            voice_id=voice_id,
-                            model_dir=voice_model_dir,
-                            language=voice_language,
-                        )
-                    )
-                    tts_tasks.append((seq, task))
+                    tts_tasks.append((seq, _make_tts_task(sentence.strip())))
                     seq += 1
 
         # 末尾未以标点结束的最后一段
         if sentence_buffer.strip():
-            task = asyncio.create_task(
-                synthesize_speech(
-                    text=sentence_buffer.strip(),
-                    voice_id=voice_id,
-                    model_dir=voice_model_dir,
-                    language=voice_language,
-                )
-            )
-            tts_tasks.append((seq, task))
+            tts_tasks.append((seq, _make_tts_task(sentence_buffer.strip())))
 
         full_reply = "".join(full_reply_parts).strip()
         if not full_reply:

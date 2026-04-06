@@ -51,6 +51,10 @@ class Settings(BaseSettings):
     pretrained_models_dir: str = "./storage/pretrained_models/GPT-SoVITS"
     storage_dir: str = "./storage"
 
+    # ── TTS（CosyVoice 2）────────────────────────────────────
+    # CosyVoice 仓库目录；预训练模型须位于 {cosyvoice_dir}/pretrained_models/CosyVoice2-0.5B
+    cosyvoice_dir: str = "./CosyVoice"
+
     # ── 安全与限制 ────────────────────────────────────────────
     # 额外允许的 CORS 来源（逗号分隔，生产部署时配置真实域名）
     # 示例：CORS_ORIGINS=https://yourdomain.com,https://app.yourdomain.com

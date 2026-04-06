@@ -11,14 +11,15 @@ export const listVoices = () => client.get<VoiceModel[]>('/voices')
 /** 获取音色详情 */
 export const getVoice = (id: number) => client.get<VoiceModelDetail>(`/voices/${id}`)
 
-/** 上传导入音色 ZIP（带进度回调） */
+/** 上传导入音色 ZIP（带进度回调，engine 默认 gptsovits） */
 export const importVoice = (
   file: File,
-  onProgress?: (percent: number) => void
+  onProgress?: (percent: number) => void,
+  engine: 'gptsovits' | 'cosyvoice2' = 'gptsovits',
 ) => {
   const form = new FormData()
   form.append('file', file)
-  return client.post<VoiceModelDetail>('/voices/import', form, {
+  return client.post<VoiceModelDetail>(`/voices/import?engine=${engine}`, form, {
     headers: { 'Content-Type': 'multipart/form-data' },
     onUploadProgress: (e) => {
       if (onProgress && e.total) {
